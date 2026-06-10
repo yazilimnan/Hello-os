@@ -845,7 +845,7 @@ BUILD_TIME=$(( (END - START) / 60 ))
 # 8. SONUÇ
 # ─────────────────────────────────────────────────
 ISO_FILE="live-image-amd64.iso"
-OUTPUT_ISO="/workspaces/Hello-os/opendarwin-1.0-amd64.iso"
+OUTPUT_ISO="/root/opendarwin-1.0-amd64.iso"
 
 if [ -f "$ISO_FILE" ]; then
     cp "$ISO_FILE" "$OUTPUT_ISO"
