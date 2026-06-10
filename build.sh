@@ -1,27 +1,26 @@
-cat > config/hooks/normal/1000-opendarwin.hook.chroot << 'FULLHOOK'
+cd /root/opendarwin-build
+mkdir -p config/hooks/normal
+
+cat > config/hooks/normal/1000-opendarwin.hook.chroot << 'TAMHOOK'
 #!/bin/bash
 set -e
 
-echo "╔══════════════════════════════════════╗"
-echo "║   OpenDarwin 1.0 - TAM KURULUM      ║"
-echo "╚══════════════════════════════════════╝"
+echo "========================================="
+echo " OpenDarwin 1.0 - TAM KURULUM ARAYÜZÜ"
+echo "========================================="
 
-# 1. LOCALE
-echo "[01/15] Locale..."
+# 1. TEMEL AYARLAR
 locale-gen tr_TR.UTF-8 en_US.UTF-8 2>/dev/null || true
 update-locale LANG=tr_TR.UTF-8 2>/dev/null || true
 ln -sf /usr/share/zoneinfo/Europe/Istanbul /etc/localtime
 
 # 2. FONT
-echo "[02/15] Pacifico font..."
 mkdir -p /usr/share/fonts/truetype/pacifico
 cd /tmp
-wget -q "https://github.com/google/fonts/raw/main/ofl/pacifico/Pacifico-Regular.ttf" -O Pacifico.ttf 2>/dev/null || \
-curl -sL "https://raw.githubusercontent.com/google/fonts/main/ofl/pacifico/Pacifico-Regular.ttf" -o Pacifico.ttf 2>/dev/null || true
+wget -q "https://github.com/google/fonts/raw/main/ofl/pacifico/Pacifico-Regular.ttf" -O Pacifico.ttf 2>/dev/null || true
 [ -f Pacifico.ttf ] && cp Pacifico.ttf /usr/share/fonts/truetype/pacifico/ && fc-cache -f
 
-# 3. MacTahoe GTK
-echo "[03/15] MacTahoe teması..."
+# 3. MacTahoe
 cd /tmp && rm -rf MacTahoe-gtk-theme
 git clone --depth=1 https://github.com/vinceliuice/MacTahoe-gtk-theme.git 2>/dev/null || \
 { wget -qO- https://github.com/vinceliuice/MacTahoe-gtk-theme/archive/master.tar.gz | tar -xz; mv MacTahoe-gtk-theme-master MacTahoe-gtk-theme; }
@@ -30,7 +29,6 @@ mkdir -p /usr/share/themes /usr/share/icons
 [ -d /root/.themes ] && cp -r /root/.themes/MacTahoe* /usr/share/themes/ 2>/dev/null || true
 
 # 4. PLYMOUTH
-echo "[04/15] Boot animasyonu..."
 mkdir -p /usr/share/plymouth/themes/opendarwin
 cat > /usr/share/plymouth/themes/opendarwin/opendarwin.plymouth << 'PLY'
 [Plymouth Theme]
@@ -65,7 +63,6 @@ update-alternatives --install /usr/share/plymouth/themes/default.plymouth defaul
 update-alternatives --set default.plymouth /usr/share/plymouth/themes/opendarwin/opendarwin.plymouth
 
 # 5. GTK
-echo "[05/15] GTK..."
 mkdir -p /etc/gtk-3.0
 cat > /etc/gtk-3.0/settings.ini << 'GTK'
 [Settings]
@@ -75,7 +72,6 @@ gtk-font-name=Pacifico 11
 GTK
 
 # 6. GNOME
-echo "[06/15] GNOME..."
 mkdir -p /etc/dconf/db/local.d
 cat > /etc/dconf/db/local.d/01-opendarwin << 'DCNF'
 [org/gnome/desktop/interface]
@@ -86,19 +82,13 @@ font-name='Pacifico 11'
 theme='MacTahoe'
 [org/gnome/shell/extensions/user-theme]
 name='MacTahoe'
-[org/gnome/desktop/background]
-picture-uri='file:///usr/share/backgrounds/opendarwin-bg.png'
-primary-color='#000000'
 DCNF
 
 # 7. DUVAR KAĞIDI
-echo "[07/15] Duvar kağıdı..."
 mkdir -p /usr/share/backgrounds
-convert -size 1920x1080 xc:'#000000' /usr/share/backgrounds/opendarwin-bg.png 2>/dev/null || \
-python3 -c "from PIL import Image;Image.new('RGB',(1920,1080),'black').save('/usr/share/backgrounds/opendarwin-bg.png')" 2>/dev/null || true
+convert -size 1920x1080 xc:'#000000' /usr/share/backgrounds/opendarwin-bg.png 2>/dev/null || true
 
 # 8. SİSTEM
-echo "[08/15] Sistem..."
 cat > /etc/os-release << 'OS'
 PRETTY_NAME="OpenDarwin 1.0"
 NAME="OpenDarwin"
@@ -108,10 +98,8 @@ ID_LIKE=ubuntu
 OS
 echo "OpenDarwin 1.0" > /etc/opendarwin-release
 echo "opendarwin" > /etc/hostname
-echo "127.0.1.1 opendarwin" >> /etc/hosts
 
 # 9. GRUB
-echo "[09/15] GRUB..."
 mkdir -p /etc/default/grub.d
 cat > /etc/default/grub.d/opendarwin.cfg << 'GRB'
 GRUB_DISTRIBUTOR="OpenDarwin"
@@ -122,273 +110,122 @@ GRUB_BACKGROUND="#000000"
 GRB
 
 # 10. KULLANICI
-echo "[10/15] Kullanıcı..."
-useradd -m -s /bin/bash -G sudo,adm,cdrom,dip,plugdev,lpadmin,netdev user 2>/dev/null || true
+useradd -m -s /bin/bash -G sudo user 2>/dev/null || true
 echo "user:123456" | chpasswd 2>/dev/null || true
-mkdir -p /etc/gdm3 /etc/lightdm
+mkdir -p /etc/gdm3
 cat > /etc/gdm3/custom.conf << 'GDM'
 [daemon]
 AutomaticLoginEnable=true
 AutomaticLogin=user
 GDM
-cat > /etc/lightdm/lightdm.conf << 'LDM'
-[Seat:*]
-autologin-user=user
-autologin-user-timeout=0
-LDM
 
-# ═══════════════════════════════════════════
-# 11. KURULUM ARAYÜZÜ - UBIQUITY CSS (TAM)
-# ═══════════════════════════════════════════
-echo "[11/15] KURULUM ARAYÜZÜ CSS..."
+# ═══════════════════════════════════════════════
+# 11. UBIQUITY KURULUM ARAYÜZÜ - TAM TEMA
+# ═══════════════════════════════════════════════
+echo "Ubiquity kurulum arayüzü özelleştiriliyor..."
 
+# CSS teması
 mkdir -p /usr/share/ubiquity/gtk
-
-cat > /usr/share/ubiquity/gtk/ubiquity.css << 'UBIQUITYCSS'
-/* ═══════════════════════════════════════════ */
-/* OpenDarwin Kurulum Arayüzü - TAM TEMA     */
-/* HTML'deki tasarımın birebir kopyası       */
-/* ═══════════════════════════════════════════ */
-
-@define-color bg_color #ffffff;
-@define-color fg_color #1d1d1f;
-@define-color accent_color #0071e3;
-@define-color secondary_color #86868b;
-@define-color border_color rgba(0, 0, 0, 0.08);
-@define-color hover_bg rgba(0, 113, 227, 0.05);
-@define-color selected_bg rgba(0, 113, 227, 0.08);
+cat > /usr/share/ubiquity/gtk/ubiquity.css << 'UBICSS'
+/* OpenDarwin Kurulum Teması - HTML birebir */
+@define-color bg #ffffff;
+@define-color fg #1d1d1f;
+@define-color ac #0071e3;
+@define-color sc #86868b;
+@define-color bd rgba(0,0,0,0.08);
 
 * { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
 
-/* Ana pencere - BEYAZ */
-window, .ubiquity, box, notebook, .live-installer, dialog {
-    background-color: @bg_color;
-    color: @fg_color;
+window, .ubiquity, box, notebook, dialog, .live-installer {
+    background-color: @bg;
+    color: @fg;
 }
 
-/* Pencere başlık çubuğu */
 .titlebar, headerbar {
-    background: rgba(255, 255, 255, 0.85);
+    background: rgba(255,255,255,0.85);
     backdrop-filter: blur(30px);
-    border-bottom: 1px solid @border_color;
-    padding: 12px 16px;
-    min-height: 36px;
+    border-bottom: 1px solid @bd;
 }
 
-/* Kırmızı-Sarı-Yeşil pencere butonları */
 button.titlebutton.close { background: #ff5f57; min-width: 12px; min-height: 12px; border-radius: 50%; }
 button.titlebutton.minimize { background: #febc2e; min-width: 12px; min-height: 12px; border-radius: 50%; }
 button.titlebutton.maximize { background: #28c840; min-width: 12px; min-height: 12px; border-radius: 50%; }
 
-/* Başlık */
-.title, .section-title, label.title {
-    font-size: 18px; font-weight: 600; color: @fg_color;
+.title, .section-title { font-size: 18px; font-weight: 600; color: @fg; }
+.subtitle, .section-subtitle { font-size: 13px; color: @sc; }
+
+button.suggested-action, button.primary {
+    background: @ac; color: #fff; border-radius: 8px;
+    padding: 10px 28px; font-weight: 500; border: none;
+    box-shadow: 0 2px 8px rgba(0,113,227,0.2);
 }
-.subtitle, .section-subtitle, label.subtitle {
-    font-size: 13px; color: @secondary_color;
+button.suggested-action:hover { background: #0077ed; }
+
+button.secondary {
+    background: rgba(0,0,0,0.05); color: @fg;
+    border: 1px solid @bd; border-radius: 8px; padding: 10px 28px;
 }
 
-/* MAVİ BUTON */
-button.suggested-action, button.primary, .btn-primary {
-    background: @accent_color;
-    color: #ffffff;
-    border-radius: 8px;
-    padding: 10px 28px;
-    font-weight: 500;
-    border: none;
-    box-shadow: 0 2px 8px rgba(0, 113, 227, 0.2);
-}
-button.suggested-action:hover, button.primary:hover {
-    background: #0077ed;
-    transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(0, 113, 227, 0.3);
-}
+progressbar { background: rgba(0,0,0,0.08); border-radius: 3px; min-height: 6px; }
+progressbar progress { background: linear-gradient(90deg, #0071e3, #5e5ce6); border-radius: 3px; }
 
-/* GRİ İKİNCİL BUTON */
-button.secondary, .btn-secondary {
-    background: rgba(0, 0, 0, 0.05);
-    color: @fg_color;
-    border: 1px solid @border_color;
-    border-radius: 8px;
-    padding: 10px 28px;
+entry, input {
+    background: rgba(0,0,0,0.03); border: 1.5px solid @bd;
+    border-radius: 8px; padding: 10px 14px; font-size: 14px; color: @fg;
 }
-button.secondary:hover { background: rgba(0, 0, 0, 0.08); }
+entry:focus { border-color: @ac; box-shadow: 0 0 0 3px rgba(0,113,227,0.1); }
 
-/* İLERLEME ÇUBUĞU */
-progressbar {
-    background: rgba(0, 0, 0, 0.08);
-    border-radius: 3px;
-    min-height: 6px;
-}
-progressbar progress {
-    background: linear-gradient(90deg, #0071e3, #5e5ce6);
-    border-radius: 3px;
-}
+switch { background: rgba(0,0,0,0.15); border-radius: 12px; }
+switch:checked { background: @ac; }
 
-/* GİRİŞ ALANLARI */
-entry, input, textview {
-    background: rgba(0, 0, 0, 0.03);
-    border: 1.5px solid @border_color;
-    border-radius: 8px;
-    padding: 10px 14px;
-    font-size: 14px;
-    color: @fg_color;
-}
-entry:focus, input:focus {
-    border-color: @accent_color;
-    box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.1);
-    outline: none;
-}
+treeview, list { background: rgba(0,0,0,0.03); border: 1.5px solid @bd; border-radius: 10px; }
+treeview:selected, list row:selected { background: rgba(0,113,227,0.08); }
 
-/* TOGGLE SWITCH */
-switch {
-    background: rgba(0, 0, 0, 0.15);
-    border-radius: 12px;
-    min-width: 44px; min-height: 24px;
-}
-switch:checked { background: @accent_color; }
+.license-text, textview { background: rgba(0,0,0,0.02); border: 1px solid @bd; border-radius: 8px; padding: 16px; }
+.network-status { background: rgba(52,199,89,0.08); border: 1px solid rgba(52,199,89,0.2); border-radius: 10px; padding: 16px; }
+.partition-visual { background: rgba(0,0,0,0.05); border: 1px solid @bd; border-radius: 6px; }
+.install-log { background: @fg; color: #34c759; font-family: monospace; font-size: 11px; padding: 16px; border-radius: 8px; }
+.reboot-countdown { font-size: 48px; font-weight: 300; color: @fg; }
+UBICSS
 
-/* DİSK LİSTESİ */
-treeview, .disk-list, list, listview {
-    background: rgba(0, 0, 0, 0.03);
-    border: 1.5px solid @border_color;
-    border-radius: 10px;
-    padding: 4px;
-}
-treeview:selected, list row:selected {
-    background: @selected_bg;
-    color: @fg_color;
-}
+# Ubiquity konfigürasyonu
+mkdir -p /etc/ubiquity
+cat > /etc/ubiquity/ubiquity.conf << 'UBCNF'
+[Ubiquity]
+theme=MacTahoe
+gtk_theme=MacTahoe
+icon_theme=MacTahoe
+UBCNF
 
-/* LİSANS METNİ */
-.license-text, textview {
-    background: rgba(0, 0, 0, 0.02);
-    border: 1px solid @border_color;
-    border-radius: 8px;
-    padding: 16px;
-    font-size: 12px;
-    color: @secondary_color;
-    line-height: 1.6;
-}
-
-/* AĞ DURUMU */
-.network-status {
-    background: rgba(52, 199, 89, 0.08);
-    border: 1px solid rgba(52, 199, 89, 0.2);
-    border-radius: 10px;
-    padding: 16px;
-}
-
-/* BÖLÜMLEME */
-.partition-visual {
-    background: rgba(0, 0, 0, 0.05);
-    border: 1px solid @border_color;
-    border-radius: 6px;
-    min-height: 30px;
-}
-
-/* KURULUM LOG */
-.install-log {
-    background: @fg_color;
-    color: #34c759;
-    font-family: monospace;
-    font-size: 11px;
-    padding: 16px;
-    border-radius: 8px;
-}
-
-/* GERİ SAYIM */
-.reboot-countdown {
-    font-size: 48px; font-weight: 300; color: @fg_color;
-}
-
-/* HELLO RENKLERİ */
-.hello-h { color: #8B5CF6; }
-.hello-e { color: #EC4899; }
-.hello-l1 { color: #EF4444; }
-.hello-l2 { color: #F97316; }
-.hello-o { color: #10B981; }
-
-/* ADIM GÖSTERGELERİ */
-.step-indicator { margin: 20px 0; }
-.step-dot {
-    min-width: 8px; min-height: 8px;
-    border-radius: 50%;
-    background: rgba(0, 0, 0, 0.15);
-    margin: 0 4px;
-}
-.step-dot.active {
-    background: @accent_color;
-    min-width: 24px;
-    border-radius: 4px;
-    box-shadow: 0 0 8px rgba(0, 113, 227, 0.4);
-}
-.step-dot.done { background: #34c759; }
-
-/* DİL SEÇİMİ */
-.language-grid { margin: 16px 0; }
-.language-option, .language-item {
-    background: rgba(0, 0, 0, 0.03);
-    border: 1.5px solid @border_color;
-    border-radius: 10px;
-    padding: 14px; margin: 4px;
-}
-.language-option:hover { border-color: @accent_color; background: @hover_bg; }
-.language-option:checked, .language-option.selected {
-    border-color: @accent_color;
-    background: @selected_bg;
-    box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.1);
-}
-
-/* TEMA SEÇİMİ */
-.theme-option {
-    border-radius: 10px; padding: 20px 16px;
-    border: 2px solid transparent; text-align: center; margin: 4px;
-}
-.theme-option.light { background: #ffffff; border-color: @border_color; }
-.theme-option.dark { background: @fg_color; color: #ffffff; }
-.theme-option.auto { background: linear-gradient(135deg, #ffffff 50%, @fg_color 50%); }
-.theme-option:checked, .theme-option.selected {
-    border-color: @accent_color !important;
-    box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.15);
-}
-
-/* CHECKBOX / RADIO */
-checkbutton, radiobutton { color: @fg_color; }
-checkbutton:checked, radiobutton:checked { color: @accent_color; }
-UBIQUITYCSS
-
-echo "  ✓ Ubiquity CSS tamam"
-
-# ═══════════════════════════════════════════
+# ═══════════════════════════════════════════════
 # 12. KURULUM SLAYT HAZIRLAMA (5 SLAYT)
-# ═══════════════════════════════════════════
-echo "[12/15] Kurulum slaytları..."
+# ═══════════════════════════════════════════════
+echo "Slaytlar hazırlanıyor..."
 
-S="/usr/share/ubiquity-slideshow/slides/l10n/tr"
+S=/usr/share/ubiquity-slideshow/slides/l10n/tr
 mkdir -p "$S"
 
-# SLAYT 1: HOŞ GELDİNİZ (RENKLİ HELLO + ADIM GÖSTERGELERİ)
+# SLAYT 1: HOŞ GELDİN - RENKLİ HELLO
 cat > "$S/welcome.html" << 'S1'
 <!DOCTYPE html><html lang="tr"><head><meta charset="UTF-8">
 <link href="https://fonts.googleapis.com/css2?family=Pacifico&display=swap" rel="stylesheet"><style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{background:#fff;text-align:center;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;padding:60px 40px}
+body{background:#fff;text-align:center;font-family:-apple-system,sans-serif;padding:60px 40px}
 .hello-text{font-family:'Pacifico',cursive;font-size:90px;display:flex;justify-content:center;gap:4px;margin-bottom:24px}
 .h{color:#8B5CF6;text-shadow:0 0 20px rgba(139,92,246,.15)}
 .e{color:#EC4899;text-shadow:0 0 20px rgba(236,72,153,.15)}
 .l1{color:#EF4444;text-shadow:0 0 20px rgba(239,68,68,.15)}
 .l2{color:#F97316;text-shadow:0 0 20px rgba(249,115,22,.15)}
-.o{background:linear-gradient(90deg,#FBBF24,#F59E0B,#10B981);-webkit-background-clip:text;-webkit-text-fill-color:transparent;animation:oShift 3s ease-in-out infinite}
+.o{background:linear-gradient(90deg,#FBBF24,#F59E0B,#10B981);-webkit-background-clip:text;-webkit-text-fill-color:transparent;animation:oShift 3s infinite}
 @keyframes oShift{0%,100%{filter:hue-rotate(0deg)}50%{filter:hue-rotate(15deg)}}
 .title{font-size:18px;font-weight:600;color:#1d1d1f;margin-bottom:6px}
 .subtitle{font-size:13px;color:#86868b}
-.step-indicator{display:flex;justify-content:center;gap:8px;margin-bottom:30px}
-.step-dot{width:8px;height:8px;border-radius:50%;background:rgba(0,0,0,.15)}
-.step-dot.active{background:#0071e3;width:24px;border-radius:4px;box-shadow:0 0 8px rgba(0,113,227,.4)}
-.step-dot.done{background:#34c759}
+.dots{display:flex;justify-content:center;gap:8px;margin-bottom:30px}
+.dot{width:8px;height:8px;border-radius:50%;background:rgba(0,0,0,.15)}
+.dot.active{background:#0071e3;width:24px;border-radius:4px;box-shadow:0 0 8px rgba(0,113,227,.4)}
+.dot.done{background:#34c759}
 </style></head><body>
-<div class="step-indicator"><div class="step-dot done"></div><div class="step-dot active"></div><div class="step-dot"></div><div class="step-dot"></div><div class="step-dot"></div></div>
+<div class="dots"><div class="dot done"></div><div class="dot active"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
 <div class="hello-text"><span class="h">h</span><span class="e">e</span><span class="l1">l</span><span class="l2">l</span><span class="o">o</span></div>
 <div class="title">OpenDarwin'e Hoş Geldiniz</div><div class="subtitle">Sürüm 1.0 - Darwin Kernel</div>
 </body></html>
@@ -463,55 +300,59 @@ body{background:#fff;text-align:center;font-family:-apple-system,sans-serif;padd
 </body></html>
 S5
 
-echo "  ✓ 5 slayt hazır"
+echo "✓ 5 slayt hazır"
 
-# ═══════════════════════════════════════════
-# 13. UBIQUITY OTURUM AYARLARI
-# ═══════════════════════════════════════════
-echo "[13/15] Ubiquity oturum ayarları..."
-
-# Ubiquity'ye özel stil enjeksiyonu
-mkdir -p /etc/ubiquity
-cat > /etc/ubiquity/ubiquity.conf << 'UBCNF'
-[Ubiquity]
-theme=MacTahoe
-gtk_theme=MacTahoe
-icon_theme=MacTahoe
-UBCNF
-
-# ═══════════════════════════════════════════
-# 14. KURULUM SONRASI İLK AÇILIŞ AYARLARI
-# ═══════════════════════════════════════════
-echo "[14/15] İlk açılış ayarları..."
-
-# İlk kurulum sihirbazını devre dışı bırak (OpenDarwin karşılaması için)
-mkdir -p /etc/xdg/autostart
-[ -f /etc/xdg/autostart/gnome-initial-setup-first-login.desktop ] && \
-    echo "X-GNOME-Autostart-enabled=false" >> /etc/xdg/autostart/gnome-initial-setup-first-login.desktop 2>/dev/null || true
-
-# ═══════════════════════════════════════════
-# 15. TEMİZLİK
-# ═══════════════════════════════════════════
-echo "[15/15] Temizlik..."
+# TEMİZLİK
 apt clean 2>/dev/null || true
-rm -rf /tmp/* /var/cache/apt/*
+rm -rf /tmp/*
 
 echo ""
 echo "╔══════════════════════════════════════╗"
-echo "║   TÜM ÖZELLEŞTİRMELER TAMAM         ║"
-echo "╠══════════════════════════════════════╣"
-echo "║  ✓ Plymouth Boot Animasyonu         ║"
-echo "║  ✓ MacTahoe GTK Teması              ║"
-echo "║  ✓ Pacifico Font                    ║"
-echo "║  ✓ GTK/GNOME Ayarları               ║"
-echo "║  ✓ Siyah Duvar Kağıdı               ║"
-echo "║  ✓ Sistem Markalaması               ║"
-echo "║  ✓ GRUB Özelleştirmesi              ║"
-echo "║  ✓ Kullanıcı: user / 123456         ║"
-echo "║  ✓ Ubiquity CSS (TAM BEYAZ TEMA)    ║"
-echo "║  ✓ 5 Kurulum Slaytı                 ║"
-echo "║  ✓ Ubiquity Oturum Ayarları         ║"
+echo "║   TÜM KURULUM ARAYÜZÜ HAZIR         ║"
+echo "║   ✓ Plymouth Boot                   ║"
+echo "║   ✓ MacTahoe GTK                    ║"
+echo "║   ✓ Ubiquity CSS (BEYAZ TEMA)       ║"
+echo "║   ✓ 5 Kurulum Slaytı                ║"
+echo "║   ✓ Kullanıcı: user / 123456        ║"
 echo "╚══════════════════════════════════════╝"
-FULLHOOK
+TAMHOOK
 
 chmod +x config/hooks/normal/1000-opendarwin.hook.chroot
+echo "Hook hazır! Şimdi build başlatılıyor..."
+
+# Paket listesi
+cat > config/package-lists/opendarwin.list.chroot << 'PKG'
+ubuntu-desktop-minimal
+ubuntu-desktop
+casper
+ubiquity
+ubiquity-frontend-gtk
+ubiquity-slideshow-ubuntu
+network-manager
+git
+wget
+plymouth
+plymouth-themes
+gnome-tweaks
+gnome-themes-extra
+gtk2-engines-murrine
+imagemagick
+sudo
+locales
+PKG
+
+# BUILD
+sudo lb build 2>&1 | tee /tmp/build.log
+
+# SONUÇ
+if [ -f "live-image-amd64.iso" ]; then
+    cp live-image-amd64.iso /root/opendarwin-1.0-amd64.iso
+    echo "╔══════════════════════════════════════╗"
+    echo "║   ISO HAZIR!                         ║"
+    echo "║   /root/opendarwin-1.0-amd64.iso    ║"
+    echo "║   Boyut: $(du -h live-image-amd64.iso | cut -f1)                         ║"
+    echo "╚══════════════════════════════════════╝"
+else
+    echo "HATA!"
+    tail -20 /tmp/build.log
+fi
