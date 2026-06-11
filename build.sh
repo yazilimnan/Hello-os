@@ -1,8 +1,8 @@
 #!/bin/bash
-# ╔══════════════════════════════════════════════════════╗
-# ║   OpenDarwin 1.0 - EKSİKSİZ TAM ISO BUILDER        ║
-# ║   /tmp dizininde çalışır → ISO: /root/opendarwin.iso ║
-# ╚══════════════════════════════════════════════════════╝
+# ╔══════════════════════════════════════════════════════════════╗
+# ║   OpenDarwin 1.0 - GNOME + Wayland + Monterey GRUB Theme   ║
+# ║   Ubuntu 24.04 Noble – GitHub Codespaces                   ║
+# ╚══════════════════════════════════════════════════════════════╝
 
 set -e
 G='\033[0;32m' B='\033[0;34m' R='\033[0;31m' N='\033[0m'
@@ -12,29 +12,32 @@ err() { echo -e "${R}[X]${N} $1"; exit 1; }
 
 clear
 echo -e "${B}"
-echo "╔══════════════════════════════════════╗"
-echo "║   OpenDarwin 1.0 ISO Builder        ║"
-echo "║   Çalışma: /tmp                     ║"
-echo "║   ISO: /root/opendarwin.iso         ║"
-echo "╚══════════════════════════════════════╝"
+echo "╔══════════════════════════════════════════╗"
+echo "║   OpenDarwin 1.0 ISO Builder            ║"
+echo "║   GNOME + Wayland + Monterey GRUB       ║"
+echo "╚══════════════════════════════════════════╝"
 echo -e "${N}"
 
-# ── 1. ÇALIŞMA DİZİNİ ──
+# ── Disk kontrolü ──
+DISK_FREE=$(df -BG /tmp | awk 'NR==2{print $4}' | sed 's/G//')
+info "Kullanılabilir disk: ${DISK_FREE} GB"
+[ "$DISK_FREE" -lt 15 ] && err "En az 15 GB boş alan gerekli!"
+
+# ── Çalışma dizini (/tmp) ──
 WORK="/tmp/opendarwin-build"
-info "Çalışma dizini: $WORK"
 sudo rm -rf "$WORK"
 mkdir -p "$WORK"
 cd "$WORK"
-log "Dizin hazır"
+log "Çalışma dizini: $WORK"
 
-# ── 2. PAKETLER ──
+# ── Gerekli paketler ──
 info "Bağımlılıklar kuruluyor..."
-sudo apt update -qq 2>/dev/null
-sudo apt install -y -qq live-build live-config live-boot live-manual debian-archive-keyring 2>/dev/null
+sudo apt update -qq
+sudo apt install -y -qq live-build live-config live-boot live-manual debian-archive-keyring
 log "Paketler hazır"
 
-# ── 3. KONFİGÜRASYON ──
-info "Live-build konfigürasyonu..."
+# ── Live-build konfigürasyonu ──
+info "Konfigürasyon..."
 sudo lb config \
     --architecture amd64 \
     --distribution noble \
@@ -54,13 +57,21 @@ sudo lb config \
     --apt-indices false
 log "Konfigürasyon tamam"
 
-# ── 4. DİZİNLER ──
+# ── Dizinler ──
 mkdir -p config/package-lists config/hooks/normal
 
-# ── 5. PAKET LİSTESİ ──
+# ── Paket listesi (saf GNOME + Wayland) ──
 cat > config/package-lists/opendarwin.list.chroot << 'PKG'
-ubuntu-desktop-minimal
-ubuntu-desktop
+gnome-session
+gnome-shell
+gnome-terminal
+gnome-control-center
+nautilus
+gdm3
+xorg
+gnome-shell-extensions
+gnome-session-wayland
+xwayland
 casper
 ubiquity
 ubiquity-frontend-gtk
@@ -76,34 +87,41 @@ plymouth-themes
 plymouth-x11
 gnome-tweaks
 gnome-themes-extra
-gnome-shell-extensions
 gtk2-engines-murrine
 gtk2-engines-pixbuf
+sassc
+meson
+libglib2.0-dev
+libxml2-utils
 imagemagick
 python3
+python3-pip
 sudo
 locales
 tzdata
 PKG
-log "Paket listesi hazır"
 
-# ── 6. HOOK ──
-cat > config/hooks/normal/1000-opendarwin.hook.chroot << 'FULLHOOK'
+# ── Özelleştirme hook'u (TÜM ÖZELLİKLER + MONTEREY GRUB TEMASI) ──
+info "Özelleştirme hook'u oluşturuluyor..."
+
+cat > config/hooks/normal/1000-opendarwin-complete.hook.chroot << 'FULLHOOK'
 #!/bin/bash
 set -e
 
-echo "╔══════════════════════════════════════╗"
-echo "║   OpenDarwin 1.0 - Özelleştirme     ║"
-echo "╚══════════════════════════════════════╝"
+echo ""
+echo "╔══════════════════════════════════════════╗"
+echo "║   OpenDarwin 1.0 - Özelleştirme         ║"
+echo "╚══════════════════════════════════════════╝"
+echo ""
 
-# 1. LOCALE
-echo "[01/13] Locale..."
+# 1. Locale ve zaman dilimi
+echo "[01/16] Locale..."
 locale-gen tr_TR.UTF-8 en_US.UTF-8 2>/dev/null || true
 update-locale LANG=tr_TR.UTF-8 2>/dev/null || true
 ln -sf /usr/share/zoneinfo/Europe/Istanbul /etc/localtime 2>/dev/null || true
 
-# 2. PACIFICO FONT
-echo "[02/13] Pacifico font..."
+# 2. Pacifico font
+echo "[02/16] Pacifico font..."
 mkdir -p /usr/share/fonts/truetype/pacifico /usr/local/share/fonts
 cd /tmp
 wget -q "https://github.com/google/fonts/raw/main/ofl/pacifico/Pacifico-Regular.ttf" -O Pacifico.ttf 2>/dev/null || \
@@ -112,13 +130,13 @@ if [ -f Pacifico.ttf ]; then
     cp Pacifico.ttf /usr/share/fonts/truetype/pacifico/
     cp Pacifico.ttf /usr/local/share/fonts/ 2>/dev/null || true
     fc-cache -f 2>/dev/null || true
-    echo "  ✓ Pacifico font"
+    echo "  ✓ Pacifico font kuruldu"
 else
     echo "  ⚠ Font indirilemedi"
 fi
 
-# 3. MacTahoe GTK TEMASI
-echo "[03/13] MacTahoe teması..."
+# 3. MacTahoe GTK teması
+echo "[03/16] MacTahoe teması..."
 cd /tmp && rm -rf MacTahoe-gtk-theme
 git clone --depth=1 https://github.com/vinceliuice/MacTahoe-gtk-theme.git 2>/dev/null || {
     wget -qO- https://github.com/vinceliuice/MacTahoe-gtk-theme/archive/master.tar.gz | tar -xz
@@ -135,13 +153,13 @@ if [ -d MacTahoe-gtk-theme ]; then
     for d in /root/.icons /home/user/.icons; do
         [ -d "$d" ] && cp -r "$d"/MacTahoe* /usr/share/icons/ 2>/dev/null || true
     done
-    echo "  ✓ MacTahoe tema"
+    echo "  ✓ MacTahoe teması kuruldu"
 else
     echo "  ⚠ Tema kurulamadı"
 fi
 
-# 4. PLYMOUTH BOOT ANİMASYONU
-echo "[04/13] Boot animasyonu..."
+# 4. Plymouth boot animasyonu
+echo "[04/16] Plymouth boot animasyonu..."
 mkdir -p /usr/share/plymouth/themes/opendarwin
 
 cat > /usr/share/plymouth/themes/opendarwin/opendarwin.plymouth << 'PLYCONF'
@@ -218,10 +236,10 @@ update-alternatives --install /usr/share/plymouth/themes/default.plymouth defaul
     /usr/share/plymouth/themes/opendarwin/opendarwin.plymouth 100 2>/dev/null || true
 update-alternatives --set default.plymouth \
     /usr/share/plymouth/themes/opendarwin/opendarwin.plymouth 2>/dev/null || true
-echo "  ✓ Boot animasyonu"
+echo "  ✓ Boot animasyonu hazır"
 
-# 5. GTK AYARLARI
-echo "[05/13] GTK ayarları..."
+# 5. GTK ayarları
+echo "[05/16] GTK ayarları..."
 mkdir -p /etc/gtk-3.0
 cat > /etc/gtk-3.0/settings.ini << 'GTKSET'
 [Settings]
@@ -229,10 +247,11 @@ gtk-theme-name=MacTahoe
 gtk-icon-theme-name=MacTahoe
 gtk-font-name=Pacifico 11
 gtk-cursor-theme-name=MacTahoe
+gtk-application-prefer-dark-theme=0
 GTKSET
 
-# 6. GNOME AYARLARI
-echo "[06/13] GNOME ayarları..."
+# 6. GNOME masaüstü ayarları
+echo "[06/16] GNOME ayarları..."
 mkdir -p /etc/dconf/db/local.d
 cat > /etc/dconf/db/local.d/01-opendarwin << 'GNOME'
 [org/gnome/desktop/interface]
@@ -240,25 +259,29 @@ gtk-theme='MacTahoe'
 icon-theme='MacTahoe'
 font-name='Pacifico 11'
 cursor-theme='MacTahoe'
+
 [org/gnome/desktop/wm/preferences]
 theme='MacTahoe'
+
 [org/gnome/shell/extensions/user-theme]
 name='MacTahoe'
+
 [org/gnome/desktop/background]
 picture-uri='file:///usr/share/backgrounds/opendarwin-bg.png'
+picture-uri-dark='file:///usr/share/backgrounds/opendarwin-bg.png'
 primary-color='#000000'
 GNOME
 
-# 7. DUVAR KAĞIDI
-echo "[07/13] Siyah duvar kağıdı..."
+# 7. Siyah duvar kağıdı
+echo "[07/16] Duvar kağıdı..."
 mkdir -p /usr/share/backgrounds
 convert -size 1920x1080 xc:'#000000' /usr/share/backgrounds/opendarwin-bg.png 2>/dev/null || \
 python3 -c "from PIL import Image;Image.new('RGB',(1920,1080),'black').save('/usr/share/backgrounds/opendarwin-bg.png')" 2>/dev/null || \
 echo "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==" | base64 -d > /usr/share/backgrounds/opendarwin-bg.png 2>/dev/null || true
 
-# 8. SİSTEM MARKALAMASI
-echo "[08/13] Sistem markalaması..."
-cat > /etc/os-release << 'OS'
+# 8. Sistem markalaması
+echo "[08/16] Sistem markalaması..."
+cat > /etc/os-release << 'OSRELEASE'
 PRETTY_NAME="OpenDarwin 1.0"
 NAME="OpenDarwin"
 VERSION_ID="1.0"
@@ -266,15 +289,32 @@ VERSION="1.0"
 ID=opendarwin
 ID_LIKE=ubuntu
 HOME_URL="https://opendarwin.org"
-OS
+SUPPORT_URL="https://opendarwin.org/support"
+BUG_REPORT_URL="https://opendarwin.org/bugs"
+OSRELEASE
 echo "OpenDarwin 1.0" > /etc/opendarwin-release
 echo "opendarwin" > /etc/hostname
 echo "127.0.1.1 opendarwin" >> /etc/hosts 2>/dev/null || true
 [ -f /etc/lsb-release ] && sed -i 's/DISTRIB_ID=.*/DISTRIB_ID=OpenDarwin/' /etc/lsb-release 2>/dev/null || true
+[ -f /etc/lsb-release ] && sed -i 's/DISTRIB_DESCRIPTION=.*/DISTRIB_DESCRIPTION="OpenDarwin 1.0"/' /etc/lsb-release 2>/dev/null || true
 
-# 9. GRUB ÖZELLEŞTİRMESİ
-echo "[09/13] GRUB..."
+# 9. GRUB özelleştirmesi + MONTEREY GRUB TEMASI
+echo "[09/16] GRUB + Monterey tema kuruluyor..."
 mkdir -p /etc/default/grub.d
+
+# Monterey GRUB teması indir ve kur
+cd /tmp
+git clone --depth=1 https://github.com/sandesh236/monterey-grub-theme.git 2>/dev/null || \
+git clone --depth=1 https://github.com/sandesh236/monterey-grub-theme.git 2>/dev/null || true
+
+if [ -d monterey-grub-theme ]; then
+    mkdir -p /boot/grub/themes
+    cp -r monterey-grub-theme /boot/grub/themes/opendarwin-grub
+    echo "  ✓ Monterey GRUB teması kopyalandı"
+else
+    echo "  ⚠ GRUB teması indirilemedi, varsayılan kullanılacak"
+fi
+
 cat > /etc/default/grub.d/99-opendarwin.cfg << 'GRUB'
 GRUB_DISTRIBUTOR="OpenDarwin"
 GRUB_TIMEOUT=5
@@ -284,10 +324,11 @@ GRUB_GFXMODE=1920x1080
 GRUB_BACKGROUND="#000000"
 GRUB_COLOR_NORMAL="white/black"
 GRUB_COLOR_HIGHLIGHT="magenta/black"
+GRUB_THEME="/boot/grub/themes/opendarwin-grub/theme.txt"
 GRUB
 
-# 10. KULLANICI HESABI
-echo "[10/13] Kullanıcı..."
+# 10. Kullanıcı hesabı (Wayland etkin)
+echo "[10/16] Kullanıcı hesabı..."
 useradd -m -s /bin/bash -G sudo,adm,cdrom,dip,plugdev,lpadmin,netdev user 2>/dev/null || true
 echo "user:123456" | chpasswd 2>/dev/null || true
 mkdir -p /etc/gdm3 /etc/lightdm
@@ -295,16 +336,21 @@ cat > /etc/gdm3/custom.conf << 'GDM'
 [daemon]
 AutomaticLoginEnable=true
 AutomaticLogin=user
+TimedLoginEnable=true
+TimedLogin=user
+TimedLoginDelay=3
+WaylandEnable=true
 GDM
-cat > /etc/lightdm/lightdm.conf << 'LDM'
+cat > /etc/lightdm/lightdm.conf << 'LIGHTDM'
 [Seat:*]
 autologin-user=user
 autologin-user-timeout=0
-LDM
-echo "  ✓ user / 123456"
+autologin-session=ubuntu
+LIGHTDM
+echo "  ✓ Kullanıcı: user / 123456 (Wayland)"
 
-# 11. UBIQUITY CSS (KURULUM ARAYÜZÜ)
-echo "[11/13] Kurulum arayüzü CSS..."
+# 11. Ubiquity CSS (Kurulum arayüzü teması)
+echo "[11/16] Kurulum arayüzü CSS..."
 mkdir -p /usr/share/ubiquity/gtk
 
 cat > /usr/share/ubiquity/gtk/ubiquity.css << 'CSS'
@@ -417,7 +463,6 @@ checkbutton, radiobutton { color: @fg; }
 checkbutton:checked, radiobutton:checked { color: @ac; }
 CSS
 
-# Ubiquity konfigürasyonu
 mkdir -p /etc/ubiquity
 cat > /etc/ubiquity/ubiquity.conf << 'UBCNF'
 [Ubiquity]
@@ -425,18 +470,19 @@ theme=MacTahoe
 gtk_theme=MacTahoe
 icon_theme=MacTahoe
 UBCNF
+echo "  ✓ Kurulum CSS teması hazır"
 
-echo "  ✓ Kurulum CSS"
-
-# 12. KURULUM SLAYT HAZIRLAMA
-echo "[12/13] Kurulum slaytları..."
+# 12. Kurulum slaytları (5 adet)
+echo "[12/16] Kurulum slaytları..."
 S="/usr/share/ubiquity-slideshow/slides/l10n/tr"
 mkdir -p "$S"
 
-cat > "$S/welcome.html" << 'S1'
+cat > "$S/welcome.html" << 'SLIDE1'
 <!DOCTYPE html>
-<html lang="tr"><head><meta charset="UTF-8">
-<link href="https://fonts.googleapis.com/css2?family=Pacifico&display=swap" rel="stylesheet"><style>
+<html lang="tr">
+<head><meta charset="UTF-8">
+<link href="https://fonts.googleapis.com/css2?family=Pacifico&display=swap" rel="stylesheet">
+<style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{background:#fff;text-align:center;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;padding:60px 40px}
 .hello-text{font-family:'Pacifico',cursive;font-size:90px;display:flex;justify-content:center;gap:4px;margin-bottom:24px}
@@ -457,9 +503,9 @@ body{background:#fff;text-align:center;font-family:-apple-system,BlinkMacSystemF
 <div class="hello-text"><span class="h">h</span><span class="e">e</span><span class="l1">l</span><span class="l2">l</span><span class="o">o</span></div>
 <div class="title">OpenDarwin'e Hoş Geldiniz</div><div class="subtitle">Sürüm 1.0 - Darwin Kernel</div>
 </body></html>
-S1
+SLIDE1
 
-cat > "$S/language.html" << 'S2'
+cat > "$S/language.html" << 'SLIDE2'
 <!DOCTYPE html><html lang="tr"><head><meta charset="UTF-8"><style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{background:#fff;color:#1d1d1f;text-align:center;font-family:-apple-system,sans-serif;padding:40px}
@@ -474,9 +520,9 @@ h2{font-size:18px;font-weight:600;margin-bottom:20px}
 <div class="item"><span class="code">DE</span> <span class="name">Deutsch</span></div>
 <div class="item"><span class="code">FR</span> <span class="name">Français</span></div>
 </div></body></html>
-S2
+SLIDE2
 
-cat > "$S/disk.html" << 'S3'
+cat > "$S/disk.html" << 'SLIDE3'
 <!DOCTYPE html><html lang="tr"><head><meta charset="UTF-8"><style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{background:#fff;color:#1d1d1f;text-align:center;font-family:-apple-system,sans-serif;padding:40px}
@@ -489,9 +535,9 @@ h2{font-size:18px;font-weight:600;margin-bottom:20px}
 <div class="disk sel"><div class="icon"></div><div><div class="dname">Darwin HD</div><div class="ddetail">APFS · 476 GB kullanılabilir</div></div></div>
 <div class="disk"><div class="icon"></div><div><div class="dname">Harici SSD</div><div class="ddetail">exFAT · 210 GB kullanılabilir</div></div></div>
 </body></html>
-S3
+SLIDE3
 
-cat > "$S/progress.html" << 'S4'
+cat > "$S/progress.html" << 'SLIDE4'
 <!DOCTYPE html><html lang="tr"><head><meta charset="UTF-8"><style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{background:#fff;color:#1d1d1f;text-align:center;font-family:-apple-system,sans-serif;padding:40px}
@@ -505,9 +551,9 @@ h2{font-size:18px;font-weight:600;margin-bottom:20px}
 <div class="time">Kalan süre: ~22 dk</div><div class="steps">
 <span class="sdone">✓ Hazırlık</span><span class="scurr">⟳ Kopyalama</span><span>Kurulum</span><span>Tamamlama</span>
 </div></body></html>
-S4
+SLIDE4
 
-cat > "$S/complete.html" << 'S5'
+cat > "$S/complete.html" << 'SLIDE5'
 <!DOCTYPE html><html lang="tr"><head><meta charset="UTF-8">
 <link href="https://fonts.googleapis.com/css2?family=Pacifico&display=swap" rel="stylesheet"><style>
 *{margin:0;padding:0;box-sizing:border-box}
@@ -522,35 +568,39 @@ body{background:#fff;text-align:center;font-family:-apple-system,sans-serif;padd
 <div class="title">Kurulum Tamamlandı!</div><div class="subtitle">OpenDarwin başarıyla yüklendi</div>
 <div class="countdown">10</div><div class="subtitle">saniye içinde yeniden başlatılacak...</div>
 </body></html>
-S5
+SLIDE5
 
-echo "  ✓ 5 slayt hazır"
+echo "  ✓ 5 kurulum slaytı hazır"
 
-# 13. TEMİZLİK
-echo "[13/13] Temizlik..."
+# 13. Ek ayarlar (initramfs güncelle)
+echo "[13/16] Ek ayarlar..."
+update-initramfs -u 2>/dev/null || true
+
+# 14. Gereksiz paketleri temizle
+echo "[14/16] Temizlik..."
 apt clean 2>/dev/null || true
 rm -rf /tmp/* /var/cache/apt/*
 
+# 15. İlk açılış sihirbazını devre dışı bırak
+echo "[15/16] İlk açılış sihirbazı kapatılıyor..."
+[ -f /etc/xdg/autostart/gnome-initial-setup-first-login.desktop ] && \
+    echo "X-GNOME-Autostart-enabled=false" >> /etc/xdg/autostart/gnome-initial-setup-first-login.desktop 2>/dev/null || true
+
+# 16. GRUB güncelle (tema ile birlikte)
+echo "[16/16] GRUB güncelleniyor..."
+update-grub 2>/dev/null || grub-mkconfig -o /boot/grub/grub.cfg 2>/dev/null || true
+
 echo ""
 echo "╔══════════════════════════════════════╗"
-echo "║   TÜM ÖZELLEŞTİRMELER TAMAM         ║"
-echo "║  ✓ Boot Animasyonu                   ║"
-echo "║  ✓ MacTahoe GTK Teması              ║"
-echo "║  ✓ Pacifico Font                    ║"
-echo "║  ✓ GTK/GNOME Ayarları               ║"
-echo "║  ✓ Siyah Duvar Kağıdı               ║"
-echo "║  ✓ Sistem Markalaması               ║"
-echo "║  ✓ GRUB                             ║"
-echo "║  ✓ Kullanıcı: user / 123456         ║"
-echo "║  ✓ Ubiquity CSS (BEYAZ TEMA)        ║"
-echo "║  ✓ 5 Kurulum Slaytı                 ║"
+echo "║   Tüm özelleştirmeler tamamlandı!   ║"
+echo "║   GRUB teması: Monterey             ║"
 echo "╚══════════════════════════════════════╝"
 FULLHOOK
 
-chmod +x config/hooks/normal/1000-opendarwin.hook.chroot
-log "Hook hazır (13 adım)"
+chmod +x config/hooks/normal/1000-opendarwin-complete.hook.chroot
+log "Hook hazır (16 adım + Monterey GRUB teması)"
 
-# ── 7. BUILD ──
+# ── ISO Build ──
 echo ""
 echo -e "${B}╔══════════════════════════════════════╗${N}"
 echo -e "${B}║   ISO OLUŞTURULUYOR...              ║${N}"
@@ -563,26 +613,38 @@ sudo lb build 2>&1 | tee /tmp/build-opendarwin.log
 END=$(date +%s)
 BUILD_TIME=$(( (END - START) / 60 ))
 
-# ── 8. SONUÇ ──
-if [ -f "live-image-amd64.iso" ]; then
-    sudo cp live-image-amd64.iso /root/opendarwin.iso
-    ISO_SIZE=$(du -h live-image-amd64.iso | cut -f1)
+# ── Sonuç ──
+ISO_FILE="live-image-amd64.iso"
+FINAL_ISO="/workspaces/Hello-os/opendarwin-1.0-amd64.iso"
+
+if [ -f "$ISO_FILE" ]; then
+    cp "$ISO_FILE" "$FINAL_ISO"
+    sudo cp "$ISO_FILE" /root/opendarwin.iso 2>/dev/null || true
+    ISO_SIZE=$(du -h "$ISO_FILE" | cut -f1)
     
     echo ""
-    echo -e "${G}╔══════════════════════════════════════╗${N}"
-    echo -e "${G}║                                      ║${N}"
-    echo -e "${G}║   🎉 ISO HAZIR! 🎉                  ║${N}"
-    echo -e "${G}║                                      ║${N}"
-    echo -e "${G}║   /root/opendarwin.iso              ║${N}"
-    echo -e "${G}║   Boyut: $ISO_SIZE                   ${N}"
-    echo -e "${G}║   Süre:  ${BUILD_TIME} dk             ${N}"
-    echo -e "${G}║                                      ║${N}"
-    echo -e "${G}║   Kullanıcı: user / 123456           ║${N}"
-    echo -e "${G}║                                      ║${N}"
-    echo -e "${G}╚══════════════════════════════════════╝${N}"
+    echo -e "${G}╔══════════════════════════════════════════════╗${N}"
+    echo -e "${G}║                                              ║${N}"
+    echo -e "${G}║   🎉 ISO BAŞARIYLA OLUŞTURULDU! 🎉          ║${N}"
+    echo -e "${G}║                                              ║${N}"
+    echo -e "${G}║   Dosya: $FINAL_ISO${N}"
+    echo -e "${G}║   Boyut: $ISO_SIZE                           ${N}"
+    echo -e "${G}║   Süre : $BUILD_TIME dakika                  ${N}"
+    echo -e "${G}║                                              ║${N}"
+    echo -e "${G}║   İndirmek için:                             ║${N}"
+    echo -e "${G}║   Sol panelde dosyaya sağ tık → Download     ║${N}"
+    echo -e "${G}║                                              ║${N}"
+    echo -e "${G}║   Kullanıcı adı : user                       ║${N}"
+    echo -e "${G}║   Parola        : 123456                     ║${N}"
+    echo -e "${G}║   Oturum        : GNOME (Wayland)            ║${N}"
+    echo -e "${G}║   GRUB teması   : Monterey                   ║${N}"
+    echo -e "${G}║                                              ║${N}"
+    echo -e "${G}╚══════════════════════════════════════════════╝${N}"
 else
     echo -e "${R}╔══════════════════════════════════════╗${N}"
-    echo -e "${R}║   HATA! ISO oluşturulamadı          ║${N}"
+    echo -e "${R}║   ISO OLUŞTURULAMADI!               ║${N}"
+    echo -e "${R}║   Hata log'u (son 30 satır):         ║${N}"
     echo -e "${R}╚══════════════════════════════════════╝${N}"
     tail -30 /tmp/build-opendarwin.log
+    exit 1
 fi
