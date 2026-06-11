@@ -21,65 +21,28 @@ jobs:
       - name: Configure live-build
         run: |
           mkdir -p build && cd build
-          lb config \
-            --architecture arm64 \
-            --distribution noble \
-            --binary-images iso-hybrid \
-            --mode ubuntu \
-            --archive-areas "main restricted universe multiverse" \
-            --parent-archive-areas "main restricted universe multiverse" \
-            --bootappend-live "boot=live components splash quiet" \
-            --iso-application "OpenDarwin 1.0 ARM64" \
-            --iso-volume "OpenDarwin 1.0 ARM" \
-            --iso-publisher "OpenDarwin Project" \
-            --memtest none \
-            --apt-options "--yes" \
-            --debian-installer false \
-            --bootloader grub-efi \
-            --bootstrap qemu-debootstrap \
-            --parent-mirror-bootstrap http://ports.ubuntu.com/ubuntu-ports/ \
-            --mirror-bootstrap http://ports.ubuntu.com/ubuntu-ports/ \
-            --cache false \
-            --apt-indices false
+          lb config --architecture arm64 --distribution noble --binary-images iso-hybrid --mode ubuntu --archive-areas "main restricted universe multiverse" --parent-archive-areas "main restricted universe multiverse" --bootappend-live "boot=live components splash quiet" --iso-application "OpenDarwin 1.0 ARM64" --iso-volume "OpenDarwin 1.0 ARM" --iso-publisher "OpenDarwin Project" --memtest none --apt-options "--yes" --debian-installer false --bootloader grub-efi --bootstrap qemu-debootstrap --parent-mirror-bootstrap http://ports.ubuntu.com/ubuntu-ports/ --mirror-bootstrap http://ports.ubuntu.com/ubuntu-ports/ --cache false --apt-indices false
 
       - name: Create package list
         run: |
           cd build
           mkdir -p config/package-lists
-          cat > config/package-lists/opendarwin.list.chroot << 'ENDPKG'
-      ubuntu-desktop-minimal
-      ubuntu-desktop
-      casper
-      ubiquity
-      ubiquity-frontend-gtk
-      ubiquity-slideshow-ubuntu
-      network-manager
-      git
-      wget
-      plymouth
-      plymouth-themes
-      gnome-tweaks
-      gnome-themes-extra
-      gtk2-engines-murrine
-      imagemagick
-      sudo
-      locales
-      ENDPKG
+          printf 'ubuntu-desktop-minimal\nubuntu-desktop\ncasper\nubiquity\nubiquity-frontend-gtk\nubiquity-slideshow-ubuntu\nnetwork-manager\ngit\nwget\nplymouth\nplymouth-themes\ngnome-tweaks\ngnome-themes-extra\ngtk2-engines-murrine\nimagemagick\nsudo\nlocales\n' > config/package-lists/opendarwin.list.chroot
 
       - name: Create hook script
         run: |
           cd build
           mkdir -p config/hooks/normal
-          cat > config/hooks/normal/1000-opendarwin.hook.chroot << 'ENDFULLHOOK'
+          cat > config/hooks/normal/1000-opendarwin.hook.chroot << 'ENDOFHOOK'
       #!/bin/bash
       set -e
-      echo "OpenDarwin ARM64 Wayland - TAM KURULUM"
+      echo "OpenDarwin ARM64 Wayland - TAM KURULUM EKRANI"
 
       # X11 kaldir
       apt remove -y --purge xserver-xorg xserver-xorg-core x11-common 2>/dev/null || true
       apt autoremove -y 2>/dev/null || true
 
-      # Wayland zorla
+      # Wayland
       mkdir -p /etc/gdm3
       cat > /etc/gdm3/custom.conf << 'GDM'
       [daemon]
@@ -170,7 +133,7 @@ jobs:
       useradd -m -s /bin/bash -G sudo user 2>/dev/null || true
       echo "user:123456" | chpasswd 2>/dev/null || true
 
-      # ===== UBIQUITY CSS (KURULUM ARAYUZU) =====
+      # ===== UBIQUITY CSS - KURULUM ARAYUZU =====
       mkdir -p /usr/share/ubiquity/gtk
       cat > /usr/share/ubiquity/gtk/ubiquity.css << 'CSS'
       @define-color bg #ffffff;
@@ -178,51 +141,41 @@ jobs:
       @define-color ac #0071e3;
       @define-color sc #86868b;
       @define-color bd rgba(0,0,0,0.08);
-      @define-color hb rgba(0,113,227,0.05);
-      @define-color sb rgba(0,113,227,0.08);
-      * { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
-      window, .ubiquity, box, notebook, dialog { background-color: @bg; color: @fg; }
-      .titlebar, headerbar { background: rgba(255,255,255,0.85); backdrop-filter: blur(30px); border-bottom: 1px solid @bd; padding: 12px 16px; }
-      button.titlebutton.close { background: #ff5f57; min-width: 12px; min-height: 12px; border-radius: 50%; }
-      button.titlebutton.minimize { background: #febc2e; min-width: 12px; min-height: 12px; border-radius: 50%; }
-      button.titlebutton.maximize { background: #28c840; min-width: 12px; min-height: 12px; border-radius: 50%; }
-      .title, .section-title { font-size: 18px; font-weight: 600; color: @fg; }
-      .subtitle, .section-subtitle { font-size: 13px; color: @sc; }
-      button.suggested-action { background: @ac; color: #fff; border-radius: 8px; padding: 10px 28px; font-weight: 500; border: none; box-shadow: 0 2px 8px rgba(0,113,227,0.2); }
-      button.suggested-action:hover { background: #0077ed; box-shadow: 0 4px 12px rgba(0,113,227,0.3); }
-      button.secondary { background: rgba(0,0,0,0.05); color: @fg; border: 1px solid @bd; border-radius: 8px; padding: 10px 28px; }
+      * { font-family: -apple-system, sans-serif; }
+      window, .ubiquity, box { background: @bg; }
+      .title { font-size: 18px; font-weight: 600; color: @fg; }
+      .subtitle { font-size: 13px; color: @sc; }
+      button.suggested-action { background: @ac; color: #fff; border-radius: 8px; padding: 10px 28px; font-weight: 500; box-shadow: 0 2px 8px rgba(0,113,227,0.2); }
+      button.suggested-action:hover { background: #0077ed; }
       progressbar { background: rgba(0,0,0,0.08); border-radius: 3px; min-height: 6px; }
       progressbar progress { background: linear-gradient(90deg, #0071e3, #5e5ce6); border-radius: 3px; }
       entry { background: rgba(0,0,0,0.03); border: 1.5px solid @bd; border-radius: 8px; padding: 10px 14px; color: @fg; }
       entry:focus { border-color: @ac; box-shadow: 0 0 0 3px rgba(0,113,227,0.1); }
       switch { background: rgba(0,0,0,0.15); border-radius: 12px; }
       switch:checked { background: @ac; }
-      treeview, list { background: rgba(0,0,0,0.03); border: 1.5px solid @bd; border-radius: 10px; }
-      treeview:selected { background: @sb; }
+      treeview { background: rgba(0,0,0,0.03); border: 1.5px solid @bd; border-radius: 10px; }
+      treeview:selected { background: rgba(0,113,227,0.08); }
       CSS
 
-      mkdir -p /etc/ubiquity
-      cat > /etc/ubiquity/ubiquity.conf << 'UBCNF'
-      [Ubiquity]
-      theme=MacTahoe
-      gtk_theme=MacTahoe
-      icon_theme=MacTahoe
-      UBCNF
-
-      # ===== KURULUM SLAYT HAZIRLAMA (5 SLAYT) =====
+      # ===== KURULUM SLAYT HAZIRLAMA =====
       S=/usr/share/ubiquity-slideshow/slides/l10n/tr
       mkdir -p "$S"
 
+      # Slayt 1: Hos Geldiniz - RENKLI HELLO
       cat > "$S/welcome.html" << 'S1'
       <!DOCTYPE html><html lang="tr"><head><meta charset="UTF-8">
       <link href="https://fonts.googleapis.com/css2?family=Pacifico&display=swap" rel="stylesheet"><style>
       *{margin:0;padding:0;box-sizing:border-box}
       body{background:#fff;text-align:center;font-family:-apple-system,sans-serif;padding:60px 40px}
       .hello{font-family:'Pacifico',cursive;font-size:90px;display:flex;justify-content:center;gap:4px;margin-bottom:24px}
-      .h{color:#8B5CF6}.e{color:#EC4899}.l1{color:#EF4444}.l2{color:#F97316}
+      .h{color:#8B5CF6;text-shadow:0 0 20px rgba(139,92,246,.15)}
+      .e{color:#EC4899;text-shadow:0 0 20px rgba(236,72,153,.15)}
+      .l1{color:#EF4444;text-shadow:0 0 20px rgba(239,68,68,.15)}
+      .l2{color:#F97316;text-shadow:0 0 20px rgba(249,115,22,.15)}
       .o{background:linear-gradient(90deg,#FBBF24,#F59E0B,#10B981);-webkit-background-clip:text;-webkit-text-fill-color:transparent;animation:oShift 3s infinite}
       @keyframes oShift{0%,100%{filter:hue-rotate(0deg)}50%{filter:hue-rotate(15deg)}}
-      .title{font-size:18px;font-weight:600;color:#1d1d1f}.subtitle{font-size:13px;color:#86868b}
+      .title{font-size:18px;font-weight:600;color:#1d1d1f;margin-bottom:6px}
+      .subtitle{font-size:13px;color:#86868b}
       .dots{display:flex;justify-content:center;gap:8px;margin-bottom:30px}
       .dot{width:8px;height:8px;border-radius:50%;background:rgba(0,0,0,.15)}
       .dot.active{background:#0071e3;width:24px;border-radius:4px;box-shadow:0 0 8px rgba(0,113,227,.4)}
@@ -230,10 +183,11 @@ jobs:
       </style></head><body>
       <div class="dots"><div class="dot done"></div><div class="dot active"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
       <div class="hello"><span class="h">h</span><span class="e">e</span><span class="l1">l</span><span class="l2">l</span><span class="o">o</span></div>
-      <div class="title">OpenDarwin'e Hoş Geldiniz</div><div class="subtitle">Sürüm 1.0 ARM64 · Wayland</div>
+      <div class="title">OpenDarwin'e Hos Geldiniz</div><div class="subtitle">Surum 1.0 ARM64 · Wayland</div>
       </body></html>
       S1
 
+      # Slayt 2: Dil Secimi
       cat > "$S/language.html" << 'S2'
       <!DOCTYPE html><html lang="tr"><head><meta charset="UTF-8"><style>
       *{margin:0;padding:0}body{background:#fff;text-align:center;font-family:sans-serif;padding:40px}
@@ -242,14 +196,15 @@ jobs:
       .i{background:rgba(0,0,0,.03);border:1.5px solid rgba(0,0,0,.08);border-radius:8px;padding:12px;font-size:14px}
       .i.s{border-color:#0071e3;background:rgba(0,113,227,.08)}
       .c{font-weight:600;color:#1d1d1f}.n{color:#86868b;font-size:12px}
-      </style></head><body><h2>Dil Seçin</h2><div class="g">
-      <div class="i s"><span class="c">TR</span> <span class="n">Türkçe</span></div>
+      </style></head><body><h2>Dil Secin</h2><div class="g">
+      <div class="i s"><span class="c">TR</span> <span class="n">Turkce</span></div>
       <div class="i"><span class="c">EN</span> <span class="n">English</span></div>
       <div class="i"><span class="c">DE</span> <span class="n">Deutsch</span></div>
-      <div class="i"><span class="c">FR</span> <span class="n">Français</span></div>
+      <div class="i"><span class="c">FR</span> <span class="n">Francais</span></div>
       </div></body></html>
       S2
 
+      # Slayt 3: Disk Secimi
       cat > "$S/disk.html" << 'S3'
       <!DOCTYPE html><html lang="tr"><head><meta charset="UTF-8"><style>
       *{margin:0;padding:0}body{background:#fff;text-align:center;font-family:sans-serif;padding:40px}
@@ -258,12 +213,13 @@ jobs:
       .d.s{border-color:#0071e3;background:rgba(0,113,227,.08)}
       .ic{width:32px;height:32px;background:#86868b;border-radius:6px}
       .dn{font-weight:500;font-size:15px}.dd{color:#86868b;font-size:12px}
-      </style></head><body><h2>Kurulum Diski Seçin</h2>
+      </style></head><body><h2>Kurulum Diski Secin</h2>
       <div class="d s"><div class="ic"></div><div><div class="dn">Darwin HD</div><div class="dd">APFS · 476 GB</div></div></div>
       <div class="d"><div class="ic"></div><div><div class="dn">Harici SSD</div><div class="dd">exFAT · 210 GB</div></div></div>
       </body></html>
       S3
 
+      # Slayt 4: Kurulum Ilerleme
       cat > "$S/progress.html" << 'S4'
       <!DOCTYPE html><html lang="tr"><head><meta charset="UTF-8"><style>
       *{margin:0;padding:0}body{background:#fff;text-align:center;font-family:sans-serif;padding:40px}
@@ -274,11 +230,12 @@ jobs:
       .st{display:flex;justify-content:space-between;max-width:400px;margin:20px auto;font-size:11px;color:#86868b}
       .sd{color:#34c759}.sc{color:#0071e3}.t{color:#86868b;font-size:13px;margin-top:8px}
       </style></head><body><h2>Kurulum Devam Ediyor</h2><div class="b"><div class="f"></div></div>
-      <div class="t">Kalan süre: ~22 dk</div><div class="st">
-      <span class="sd">✓ Hazırlık</span><span class="sc">⟳ Kopyalama</span><span>Kurulum</span><span>Tamamlama</span>
+      <div class="t">Kalan sure: ~22 dk</div><div class="st">
+      <span class="sd">✓ Hazirlik</span><span class="sc">⟳ Kopyalama</span><span>Kurulum</span><span>Tamamlama</span>
       </div></body></html>
       S4
 
+      # Slayt 5: Tamamlandi
       cat > "$S/complete.html" << 'S5'
       <!DOCTYPE html><html lang="tr"><head><meta charset="UTF-8">
       <link href="https://fonts.googleapis.com/css2?family=Pacifico&display=swap" rel="stylesheet"><style>
@@ -290,16 +247,15 @@ jobs:
       .c{font-size:48px;font-weight:300;color:#1d1d1f;margin:20px 0}
       </style></head><body>
       <div class="h"><span class="h1">h</span><span class="h2">e</span><span class="h3">l</span><span class="h4">l</span><span class="h5">o</span></div>
-      <div class="t">Kurulum Tamamlandı!</div><div class="s">OpenDarwin başarıyla yüklendi</div>
-      <div class="c">10</div><div class="s">saniye içinde yeniden başlatılacak...</div>
+      <div class="t">Kurulum Tamamlandi!</div><div class="s">OpenDarwin basariyla yuklendi</div>
+      <div class="c">10</div><div class="s">saniye icinde yeniden baslatilacak...</div>
       </body></html>
       S5
 
       apt clean 2>/dev/null || true
       rm -rf /tmp/*
-      echo "TAM KURULUM EKRANI HAZIR"
-      ENDFULLHOOK
-
+      echo "TUM KURULUM EKRANI HAZIR"
+      ENDOFHOOK
           chmod +x config/hooks/normal/1000-opendarwin.hook.chroot
 
       - name: Build ISO
@@ -316,7 +272,7 @@ jobs:
 
       - name: Summary
         run: |
-          echo "## OpenDarwin 1.0 ARM64 Wayland" >> $GITHUB_STEP_SUMMARY
+          echo "## OpenDarwin 1.0 ARM64 Wayland Hazir" >> $GITHUB_STEP_SUMMARY
           echo "**Kurulum:** Ubiquity + CSS + 5 Slayt" >> $GITHUB_STEP_SUMMARY
           echo "**Grafik:** Wayland (X11 yok)" >> $GITHUB_STEP_SUMMARY
           echo "**Kullanici:** user / 123456" >> $GITHUB_STEP_SUMMARY
