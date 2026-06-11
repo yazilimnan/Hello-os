@@ -1,79 +1,78 @@
 #!/bin/bash
+# ╔══════════════════════════════════════════════════════════════╗
+# ║   OpenDarwin 1.0 ARM64 - macOS Tahoe Stilinde Kurulum      ║
+# ║   GNOME + Wayland + Plymouth Boot + Ubiquity + Slaytlar    ║
+# ╚══════════════════════════════════════════════════════════════╝
+
 set -e
 
-echo "╔══════════════════════════════════════╗"
-echo "║   OpenDarwin 1.0 ARM64 Wayland      ║"
-echo "║   TAM KURULUM EKRANI               ║"
-echo "╚══════════════════════════════════════╝"
+# ── Renkler ──
+G='\033[0;32m' B='\033[0;34m' R='\033[0;31m' Y='\033[1;33m' N='\033[0m'
+log() { echo -e "${G}[✓]${N} $1"; }
+info() { echo -e "${B}[*]${N} $1"; }
+warn() { echo -e "${Y}[!]${N} $1"; }
+err() { echo -e "${R}[X]${N} $1"; exit 1; }
 
-rm -rf build
-mkdir -p build && cd build
+clear
+echo -e "${B}"
+echo "╔══════════════════════════════════════════╗"
+echo "║   OpenDarwin 1.0 ARM64 ISO Builder      ║"
+echo "║   macOS Tahoe Style                     ║"
+echo "╚══════════════════════════════════════════╝"
+echo -e "${N}"
 
-lb config \
-    --architecture arm64 \
-    --distribution noble \
-    --binary-images iso-hybrid \
-    --mode ubuntu \
-    --archive-areas "main restricted universe multiverse" \
-    --parent-archive-areas "main restricted universe multiverse" \
-    --bootappend-live "boot=live components splash quiet" \
-    --iso-application "OpenDarwin 1.0 ARM64" \
-    --iso-volume "OpenDarwin 1.0 ARM" \
-    --iso-publisher "OpenDarwin Project" \
-    --memtest none \
-    --apt-options "--yes" \
-    --debian-installer false \
-    --bootloader grub-efi \
-    --bootstrap qemu-debootstrap \
-    --parent-mirror-bootstrap http://ports.ubuntu.com/ubuntu-ports/ \
-    --mirror-bootstrap http://ports.ubuntu.com/ubuntu-ports/ \
-    --cache false \
-    --apt-indices false
+# ── 1. Bağımlılıklar ──
+info "Gerekli paketler kuruluyor..."
+apt update -qq
+apt install -y -qq debootstrap xorriso isolinux squashfs-tools mtools dosfstools p7zip-full wget git
 
-sudo mkdir -p chroot cache
+# ── 2. Çalışma dizinleri ──
+WORK=~/opendarwin-arm64
+ROOTFS=$WORK/rootfs
+ISO_DIR=$WORK/iso
 
-mkdir -p config/package-lists
-cat > config/package-lists/opendarwin.list.chroot << 'PKG'
-ubuntu-desktop-minimal
-ubuntu-desktop
-casper
-ubiquity
-ubiquity-frontend-gtk
-ubiquity-slideshow-ubuntu
-network-manager
-git
-wget
-plymouth
-plymouth-themes
-gnome-tweaks
-gnome-themes-extra
-gtk2-engines-murrine
-imagemagick
-sudo
-locales
-PKG
+rm -rf $WORK
+mkdir -p $ROOTFS $ISO_DIR/{casper,isolinux,boot/grub}
 
-mkdir -p config/hooks/normal
-cat > config/hooks/normal/1000-opendarwin.hook.chroot << 'HOOK'
-#!/bin/bash
+# ── 3. Debootstrap ile Ubuntu Base Kurulumu ──
+info "ARM64 rootfs oluşturuluyor (debootstrap)..."
+debootstrap --arch=arm64 --foreign noble $ROOTFS http://ports.ubuntu.com/ubuntu-ports/
+
+# İkinci aşama için chroot hazırlığı
+cp /usr/bin/qemu-aarch64-static $ROOTFS/usr/bin/ 2>/dev/null || true
+mount --bind /dev $ROOTFS/dev
+mount --bind /proc $ROOTFS/proc
+mount --bind /sys $ROOTFS/sys
+cp /etc/resolv.conf $ROOTFS/etc/
+
+# Debootstrap ikinci aşama
+chroot $ROOTFS /debootstrap/debootstrap --second-stage
+
+# ── 4. Sistem Kurulumu ve Özelleştirme ──
+info "GNOME, tema ve kurulum arayüzü yükleniyor..."
+chroot $ROOTFS /bin/bash << 'ENDCHROOT'
 set -e
-echo "OpenDarwin - TAM KURULUM EKRANI"
+export DEBIAN_FRONTEND=noninteractive
 
-# X11 kaldir Wayland zorla
-apt remove -y --purge xserver-xorg xserver-xorg-core x11-common 2>/dev/null || true
-apt autoremove -y 2>/dev/null || true
-mkdir -p /etc/gdm3
-cat > /etc/gdm3/custom.conf << 'GDM'
-[daemon]
-WaylandEnable=true
-AutomaticLoginEnable=true
-AutomaticLogin=user
-GDM
+# ── Temel sistem ──
+apt update
+apt install -y --no-install-recommends \
+    gnome-session gnome-shell gnome-terminal gnome-control-center \
+    gnome-tweaks gnome-themes-extra gnome-shell-extensions gdm3 \
+    gnome-calculator gnome-text-editor gnome-system-monitor nautilus \
+    casper ubiquity ubiquity-frontend-gtk ubiquity-slideshow-ubuntu \
+    network-manager network-manager-gnome \
+    git wget plymouth plymouth-themes plymouth-x11 \
+    sudo locales tzdata imagemagick \
+    linux-image-generic grub-efi-aa64 shim-signed \
+    gtk2-engines-murrine gtk2-engines-pixbuf sassc meson libglib2.0-dev libxml2-utils
 
-# Locale & Saat
-locale-gen tr_TR.UTF-8 en_US.UTF-8 2>/dev/null || true
-update-locale LANG=tr_TR.UTF-8 2>/dev/null || true
+# ── Locale ve zaman ──
+locale-gen tr_TR.UTF-8 en_US.UTF-8 de_DE.UTF-8 fr_FR.UTF-8
+update-locale LANG=tr_TR.UTF-8
 ln -sf /usr/share/zoneinfo/Europe/Istanbul /etc/localtime
+
+# ── Saat göstergesi ──
 mkdir -p /etc/dconf/db/local.d
 cat > /etc/dconf/db/local.d/00-clock << 'CLK'
 [org/gnome/desktop/interface]
@@ -83,24 +82,71 @@ clock-show-weekday=true
 clock-format='24h'
 CLK
 
-# Font
+# ── Pacifico font ──
 mkdir -p /usr/share/fonts/truetype/pacifico
 cd /tmp
-wget -q "https://github.com/google/fonts/raw/main/ofl/pacifico/Pacifico-Regular.ttf" -O Pacifico.ttf 2>/dev/null || true
-[ -f Pacifico.ttf ] && cp Pacifico.ttf /usr/share/fonts/truetype/pacifico/ && fc-cache -f
+wget -q "https://github.com/google/fonts/raw/main/ofl/pacifico/Pacifico-Regular.ttf" -O Pacifico.ttf || \
+curl -sL "https://raw.githubusercontent.com/google/fonts/main/ofl/pacifico/Pacifico-Regular.ttf" -o Pacifico.ttf
+if [ -f Pacifico.ttf ]; then
+    cp Pacifico.ttf /usr/share/fonts/truetype/pacifico/
+    fc-cache -f
+fi
 
-# MacTahoe
+# ── MacTahoe GTK Teması (macOS benzeri) ──
 cd /tmp && rm -rf MacTahoe-gtk-theme
-git clone --depth=1 https://github.com/vinceliuice/MacTahoe-gtk-theme.git 2>/dev/null || { wget -qO- https://github.com/vinceliuice/MacTahoe-gtk-theme/archive/master.tar.gz | tar -xz; mv MacTahoe-gtk-theme-master MacTahoe-gtk-theme; }
-[ -d MacTahoe-gtk-theme ] && cd MacTahoe-gtk-theme && ./install.sh -c dark -i 2>/dev/null || true
-mkdir -p /usr/share/themes /usr/share/icons
-[ -d /root/.themes ] && cp -r /root/.themes/MacTahoe* /usr/share/themes/ 2>/dev/null || true
+git clone --depth=1 https://github.com/vinceliuice/MacTahoe-gtk-theme.git || {
+    wget -qO- https://github.com/vinceliuice/MacTahoe-gtk-theme/archive/master.tar.gz | tar -xz
+    mv MacTahoe-gtk-theme-master MacTahoe-gtk-theme
+}
+if [ -d MacTahoe-gtk-theme ]; then
+    cd MacTahoe-gtk-theme
+    ./install.sh -c dark -i
+    ./install.sh -t all
+    mkdir -p /usr/share/themes /usr/share/icons
+    [ -d /root/.themes ] && cp -r /root/.themes/MacTahoe* /usr/share/themes/
+    [ -d /root/.icons ] && cp -r /root/.icons/MacTahoe* /usr/share/icons/
+fi
 
-# Plymouth
+# ── GTK Ayarları ──
+mkdir -p /etc/gtk-3.0
+cat > /etc/gtk-3.0/settings.ini << 'GTK'
+[Settings]
+gtk-theme-name=MacTahoe
+gtk-icon-theme-name=MacTahoe
+gtk-font-name=Pacifico 11
+GTK
+
+# ── GNOME Ayarları ──
+mkdir -p /etc/dconf/db/local.d
+cat > /etc/dconf/db/local.d/01-opendarwin << 'DCNF'
+[org/gnome/desktop/interface]
+gtk-theme='MacTahoe'
+icon-theme='MacTahoe'
+font-name='Pacifico 11'
+cursor-theme='MacTahoe'
+
+[org/gnome/desktop/wm/preferences]
+theme='MacTahoe'
+
+[org/gnome/shell/extensions/user-theme]
+name='MacTahoe'
+
+[org/gnome/desktop/background]
+picture-uri='file:///usr/share/backgrounds/opendarwin-bg.png'
+primary-color='#000000'
+DCNF
+
+# ── Siyah Duvar Kağıdı ──
+mkdir -p /usr/share/backgrounds
+convert -size 1920x1080 xc:'#000000' /usr/share/backgrounds/opendarwin-bg.png 2>/dev/null || \
+python3 -c "from PIL import Image;Image.new('RGB',(1920,1080),'black').save('/usr/share/backgrounds/opendarwin-bg.png')" 2>/dev/null || true
+
+# ── Plymouth Boot Animasyonu ──
 mkdir -p /usr/share/plymouth/themes/opendarwin
 cat > /usr/share/plymouth/themes/opendarwin/opendarwin.plymouth << 'PLY'
 [Plymouth Theme]
 Name=OpenDarwin
+Description=OpenDarwin Boot Screen - hello
 ModuleName=script
 [script]
 ImageDir=/usr/share/plymouth/themes/opendarwin
@@ -127,134 +173,146 @@ animate()
 SCR
 update-alternatives --install /usr/share/plymouth/themes/default.plymouth default.plymouth /usr/share/plymouth/themes/opendarwin/opendarwin.plymouth 100
 update-alternatives --set default.plymouth /usr/share/plymouth/themes/opendarwin/opendarwin.plymouth
+update-initramfs -u
 
-# GTK
-mkdir -p /etc/gtk-3.0
-cat > /etc/gtk-3.0/settings.ini << 'GTK'
-[Settings]
-gtk-theme-name=MacTahoe
-gtk-icon-theme-name=MacTahoe
-gtk-font-name=Pacifico 11
-GTK
-
-# Sistem
+# ── Sistem Markalaması ──
 cat > /etc/os-release << 'OS'
 PRETTY_NAME="OpenDarwin 1.0 ARM64"
 NAME="OpenDarwin"
 VERSION_ID="1.0"
 ID=opendarwin
 ID_LIKE=ubuntu
+HOME_URL="https://opendarwin.org"
 OS
 echo "OpenDarwin 1.0 ARM64" > /etc/opendarwin-release
 echo "opendarwin" > /etc/hostname
+echo "127.0.1.1 opendarwin" >> /etc/hosts
 
-# GRUB
+# ── GRUB ──
 mkdir -p /etc/default/grub.d
-cat > /etc/default/grub.d/opendarwin.cfg << 'GRB'
+cat > /etc/default/grub.d/99-opendarwin.cfg << 'GRB'
 GRUB_DISTRIBUTOR="OpenDarwin"
 GRUB_TIMEOUT=5
 GRUB_CMDLINE_LINUX_DEFAULT="quiet splash"
+GRUB_GFXMODE=1920x1080
+GRUB_BACKGROUND="#000000"
+GRUB_COLOR_NORMAL="white/black"
+GRUB_COLOR_HIGHLIGHT="magenta/black"
 GRB
 
-# Kullanici
-useradd -m -s /bin/bash -G sudo user 2>/dev/null || true
-echo "user:123456" | chpasswd 2>/dev/null || true
+# ── Kullanıcı ──
+useradd -m -s /bin/bash -G sudo,adm,cdrom,dip,plugdev,lpadmin,netdev user || true
+echo "user:123456" | chpasswd
+mkdir -p /home/user/{Masaüstü,Belgeler,İndirilenler,Müzik,Resimler,Videolar}
 
-# ===== UBIQUITY CSS - KURULUM ARAYUZU =====
+# GDM otomatik giriş
+mkdir -p /etc/gdm3
+cat > /etc/gdm3/custom.conf << 'GDM'
+[daemon]
+WaylandEnable=true
+AutomaticLoginEnable=true
+AutomaticLogin=user
+DefaultSession=gnome.desktop
+GDM
+
+# ── Ubiquity CSS (Beyaz, şık, macOS benzeri) ──
 mkdir -p /usr/share/ubiquity/gtk
 cat > /usr/share/ubiquity/gtk/ubiquity.css << 'CSS'
-@define-color bg #ffffff;
-@define-color fg #1d1d1f;
-@define-color ac #0071e3;
-@define-color sc #86868b;
-@define-color bd rgba(0,0,0,0.08);
-@define-color hb rgba(0,113,227,0.05);
-@define-color sb rgba(0,113,227,0.08);
+@define-color bg_color #ffffff;
+@define-color fg_color #1d1d1f;
+@define-color accent_color #0071e3;
+@define-color secondary_color #86868b;
+@define-color border_color rgba(0, 0, 0, 0.08);
+@define-color hover_bg rgba(0, 113, 227, 0.05);
+@define-color selected_bg rgba(0, 113, 227, 0.08);
 
 * { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
 
 window, .ubiquity, box, notebook, .live-installer, dialog {
-    background-color: @bg; color: @fg;
+    background-color: @bg_color;
+    color: @fg_color;
 }
 
 .titlebar, headerbar {
-    background: rgba(255,255,255,0.85);
+    background: rgba(255, 255, 255, 0.85);
     backdrop-filter: blur(30px);
-    border-bottom: 1px solid @bd;
-    padding: 12px 16px; min-height: 36px;
+    border-bottom: 1px solid @border_color;
+    padding: 12px 16px;
+    min-height: 36px;
 }
 
 button.titlebutton.close { background: #ff5f57; min-width: 12px; min-height: 12px; border-radius: 50%; }
 button.titlebutton.minimize { background: #febc2e; min-width: 12px; min-height: 12px; border-radius: 50%; }
 button.titlebutton.maximize { background: #28c840; min-width: 12px; min-height: 12px; border-radius: 50%; }
 
-.title, .section-title, label.title { font-size: 18px; font-weight: 600; color: @fg; }
-.subtitle, .section-subtitle, label.subtitle { font-size: 13px; color: @sc; }
+.title, .section-title, label.title { font-size: 18px; font-weight: 600; color: @fg_color; }
+.subtitle, .section-subtitle, label.subtitle { font-size: 13px; color: @secondary_color; }
 
 button.suggested-action, button.primary {
-    background: @ac; color: #fff; border-radius: 8px;
+    background: @accent_color; color: #ffffff; border-radius: 8px;
     padding: 10px 28px; font-weight: 500; border: none;
-    box-shadow: 0 2px 8px rgba(0,113,227,0.2);
+    box-shadow: 0 2px 8px rgba(0, 113, 227, 0.2);
 }
 button.suggested-action:hover, button.primary:hover {
-    background: #0077ed; box-shadow: 0 4px 12px rgba(0,113,227,0.3); transform: translateY(-1px);
+    background: #0077ed; box-shadow: 0 4px 12px rgba(0, 113, 227, 0.3); transform: translateY(-1px);
 }
 
 button.secondary {
-    background: rgba(0,0,0,0.05); color: @fg;
-    border: 1px solid @bd; border-radius: 8px; padding: 10px 28px;
+    background: rgba(0, 0, 0, 0.05); color: @fg_color;
+    border: 1px solid @border_color; border-radius: 8px; padding: 10px 28px;
 }
-button.secondary:hover { background: rgba(0,0,0,0.08); }
+button.secondary:hover { background: rgba(0, 0, 0, 0.08); }
 
-progressbar { background: rgba(0,0,0,0.08); border-radius: 3px; min-height: 6px; }
+progressbar { background: rgba(0, 0, 0, 0.08); border-radius: 3px; min-height: 6px; }
 progressbar progress { background: linear-gradient(90deg, #0071e3, #5e5ce6); border-radius: 3px; }
 
-entry, input {
-    background: rgba(0,0,0,0.03); border: 1.5px solid @bd;
-    border-radius: 8px; padding: 10px 14px; font-size: 14px; color: @fg;
+entry, input, textview {
+    background: rgba(0, 0, 0, 0.03); border: 1.5px solid @border_color;
+    border-radius: 8px; padding: 10px 14px; font-size: 14px; color: @fg_color;
 }
 entry:focus, input:focus {
-    border-color: @ac; box-shadow: 0 0 0 3px rgba(0,113,227,0.1); outline: none;
+    border-color: @accent_color; box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.1); outline: none;
 }
 
-switch { background: rgba(0,0,0,0.15); border-radius: 12px; min-width: 44px; min-height: 24px; }
-switch:checked { background: @ac; }
+switch { background: rgba(0, 0, 0, 0.15); border-radius: 12px; min-width: 44px; min-height: 24px; }
+switch:checked { background: @accent_color; }
 
-treeview, .disk-list, list {
-    background: rgba(0,0,0,0.03); border: 1.5px solid @bd; border-radius: 10px; padding: 4px;
+treeview, .disk-list, list, listview {
+    background: rgba(0, 0, 0, 0.03); border: 1.5px solid @border_color; border-radius: 10px; padding: 4px;
 }
-treeview:selected, list row:selected { background: @sb; color: @fg; }
+treeview:selected, list row:selected { background: @selected_bg; color: @fg_color; }
 
 .language-option, .language-item {
-    background: rgba(0,0,0,0.03); border: 1.5px solid @bd;
+    background: rgba(0, 0, 0, 0.03); border: 1.5px solid @border_color;
     border-radius: 10px; padding: 14px; margin: 4px;
 }
-.language-option:hover { border-color: @ac; background: @hb; }
+.language-option:hover { border-color: @accent_color; background: @hover_bg; }
 .language-option:checked, .language-option.selected {
-    border-color: @ac; background: @sb; box-shadow: 0 0 0 3px rgba(0,113,227,0.1);
+    border-color: @accent_color; background: @selected_bg; box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.1);
 }
 
 .step-indicator { margin: 20px 0; }
-.step-dot { min-width: 8px; min-height: 8px; border-radius: 50%; background: rgba(0,0,0,0.15); margin: 0 4px; }
-.step-dot.active { background: @ac; min-width: 24px; border-radius: 4px; box-shadow: 0 0 8px rgba(0,113,227,0.4); }
+.step-dot { min-width: 8px; min-height: 8px; border-radius: 50%; background: rgba(0, 0, 0, 0.15); margin: 0 4px; }
+.step-dot.active { background: @accent_color; min-width: 24px; border-radius: 4px; box-shadow: 0 0 8px rgba(0, 113, 227, 0.4); }
 .step-dot.done { background: #34c759; }
 
-.license-text { background: rgba(0,0,0,0.02); border: 1px solid @bd; border-radius: 8px; padding: 16px; font-size: 12px; color: @sc; line-height: 1.6; }
-.network-status { background: rgba(52,199,89,0.08); border: 1px solid rgba(52,199,89,0.2); border-radius: 10px; padding: 16px; }
-.partition-visual { background: rgba(0,0,0,0.05); border: 1px solid @bd; border-radius: 6px; min-height: 30px; }
-.install-log { background: @fg; color: #34c759; font-family: monospace; font-size: 11px; padding: 16px; border-radius: 8px; }
-.reboot-countdown { font-size: 48px; font-weight: 300; color: @fg; margin: 20px 0; }
+.license-text { background: rgba(0, 0, 0, 0.02); border: 1px solid @border_color; border-radius: 8px; padding: 16px; font-size: 12px; color: @secondary_color; line-height: 1.6; }
+.network-status { background: rgba(52, 199, 89, 0.08); border: 1px solid rgba(52, 199, 89, 0.2); border-radius: 10px; padding: 16px; }
+.partition-visual { background: rgba(0, 0, 0, 0.05); border: 1px solid @border_color; border-radius: 6px; min-height: 30px; }
+.install-log { background: @fg_color; color: #34c759; font-family: monospace; font-size: 11px; padding: 16px; border-radius: 8px; }
+.reboot-countdown { font-size: 48px; font-weight: 300; color: @fg_color; margin: 20px 0; }
 
 .theme-option { border-radius: 10px; padding: 20px 16px; border: 2px solid transparent; text-align: center; margin: 4px; }
-.theme-option.light { background: #ffffff; border-color: @bd; }
-.theme-option.dark { background: @fg; color: #ffffff; }
-.theme-option.auto { background: linear-gradient(135deg, #ffffff 50%, @fg 50%); }
-.theme-option:checked, .theme-option.selected { border-color: @ac !important; box-shadow: 0 0 0 3px rgba(0,113,227,0.15); }
+.theme-option.light { background: #ffffff; border-color: @border_color; }
+.theme-option.dark { background: @fg_color; color: #ffffff; }
+.theme-option.auto { background: linear-gradient(135deg, #ffffff 50%, @fg_color 50%); }
+.theme-option:checked, .theme-option.selected { border-color: @accent_color !important; box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.15); }
 
-checkbutton, radiobutton { color: @fg; }
-checkbutton:checked, radiobutton:checked { color: @ac; }
+checkbutton, radiobutton { color: @fg_color; }
+checkbutton:checked, radiobutton:checked { color: @accent_color; }
 CSS
 
+# ── Ubiquity Yapılandırması ──
 mkdir -p /etc/ubiquity
 cat > /etc/ubiquity/ubiquity.conf << 'UBCNF'
 [Ubiquity]
@@ -263,86 +321,95 @@ gtk_theme=MacTahoe
 icon_theme=MacTahoe
 UBCNF
 
-# Otomatik kurulum başlatma
+# ── Otomatik Kurulum Başlatma ──
 mkdir -p /etc/xdg/autostart
 cat > /etc/xdg/autostart/ubiquity.desktop << 'AUTO'
 [Desktop Entry]
 Type=Application
 Name=Install OpenDarwin
 Exec=ubiquity --automatic
+Icon=system-software-install
 X-GNOME-Autostart-enabled=true
 NoDisplay=true
 AUTO
 
-# ===== 5 KURULUM SLAYT =====
+# ── Kurulum Slaytları (5 adet, şık tasarım) ──
 S=/usr/share/ubiquity-slideshow/slides/l10n/tr
 mkdir -p "$S"
 
-# Slayt 1: Hoş Geldiniz - RENKLİ HELLO + ADIMLAR
+# Slayt 1: Hoş Geldiniz - Renkli hello
 cat > "$S/welcome.html" << 'S1'
-<!DOCTYPE html><html lang="tr"><head><meta charset="UTF-8">
-<link href="https://fonts.googleapis.com/css2?family=Pacifico&display=swap" rel="stylesheet"><style>
+<!DOCTYPE html>
+<html lang="tr">
+<head><meta charset="UTF-8">
+<link href="https://fonts.googleapis.com/css2?family=Pacifico&display=swap" rel="stylesheet">
+<style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{background:#fff;text-align:center;font-family:-apple-system,sans-serif;padding:60px 40px}
-.hello{font-family:'Pacifico',cursive;font-size:90px;display:flex;justify-content:center;gap:4px;margin-bottom:24px}
-.h{color:#8B5CF6;text-shadow:0 0 20px rgba(139,92,246,.15)}
-.e{color:#EC4899;text-shadow:0 0 20px rgba(236,72,153,.15)}
-.l1{color:#EF4444;text-shadow:0 0 20px rgba(239,68,68,.15)}
-.l2{color:#F97316;text-shadow:0 0 20px rgba(249,115,22,.15)}
+body{background:#ffffff;text-align:center;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;padding:60px 40px}
+.hello-text{font-family:'Pacifico',cursive;font-size:90px;display:flex;justify-content:center;gap:4px;margin-bottom:24px}
+.h{color:#8B5CF6;text-shadow:0 0 20px rgba(139,92,246,0.15)}
+.e{color:#EC4899;text-shadow:0 0 20px rgba(236,72,153,0.15)}
+.l1{color:#EF4444;text-shadow:0 0 20px rgba(239,68,68,0.15)}
+.l2{color:#F97316;text-shadow:0 0 20px rgba(249,115,22,0.15)}
 .o{background:linear-gradient(90deg,#FBBF24,#F59E0B,#10B981);-webkit-background-clip:text;-webkit-text-fill-color:transparent;animation:oShift 3s infinite}
 @keyframes oShift{0%,100%{filter:hue-rotate(0deg)}50%{filter:hue-rotate(15deg)}}
 .title{font-size:18px;font-weight:600;color:#1d1d1f;margin-bottom:6px}
 .subtitle{font-size:13px;color:#86868b}
 .dots{display:flex;justify-content:center;gap:8px;margin-bottom:30px}
-.dot{width:8px;height:8px;border-radius:50%;background:rgba(0,0,0,.15)}
-.dot.active{background:#0071e3;width:24px;border-radius:4px;box-shadow:0 0 8px rgba(0,113,227,.4)}
+.dot{width:8px;height:8px;border-radius:50%;background:rgba(0,0,0,0.15)}
+.dot.active{background:#0071e3;width:24px;border-radius:4px;box-shadow:0 0 8px rgba(0,113,227,0.4)}
 .dot.done{background:#34c759}
-</style></head><body>
+</style></head>
+<body>
 <div class="dots"><div class="dot done"></div><div class="dot active"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
-<div class="hello"><span class="h">h</span><span class="e">e</span><span class="l1">l</span><span class="l2">l</span><span class="o">o</span></div>
-<div class="title">OpenDarwin'e Hoş Geldiniz</div><div class="subtitle">Sürüm 1.0 ARM64 · Wayland</div>
-</body></html>
+<div class="hello-text"><span class="h">h</span><span class="e">e</span><span class="l1">l</span><span class="l2">l</span><span class="o">o</span></div>
+<div class="title">OpenDarwin'e Hoş Geldiniz</div>
+<div class="subtitle">Sürüm 1.0 ARM64 · macOS Tahoe Stili</div>
+</body>
+</html>
 S1
 
-# Slayt 2: Dil & Bölge
+# Slayt 2: Dil ve Bölge
 cat > "$S/language.html" << 'S2'
 <!DOCTYPE html><html lang="tr"><head><meta charset="UTF-8"><style>
-*{margin:0;padding:0}body{background:#fff;text-align:center;font-family:sans-serif;padding:40px}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#fff;color:#1d1d1f;text-align:center;font-family:-apple-system,sans-serif;padding:40px}
 h2{font-size:18px;font-weight:600;margin-bottom:10px}
-.g{display:grid;grid-template-columns:1fr 1fr;gap:8px;max-width:400px;margin:0 auto 20px;text-align:left}
-.i{background:rgba(0,0,0,.03);border:1.5px solid rgba(0,0,0,.08);border-radius:8px;padding:12px;font-size:14px}
-.i.s{border-color:#0071e3;background:rgba(0,113,227,.08)}
-.c{font-weight:600;color:#1d1d1f}.n{color:#86868b;font-size:12px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;max-width:400px;margin:0 auto 20px;text-align:left}
+.item{background:rgba(0,0,0,.03);border:1.5px solid rgba(0,0,0,.08);border-radius:8px;padding:12px;font-size:14px}
+.item.sel{border-color:#0071e3;background:rgba(0,113,227,.08)}
+.code{font-weight:600;color:#1d1d1f}.name{color:#86868b;font-size:12px}
 .region{margin-top:16px;text-align:left;max-width:400px;margin:0 auto}
 .region select{width:100%;padding:10px;border:1.5px solid rgba(0,0,0,.1);border-radius:8px;font-size:14px}
 </style></head><body>
-<h2>Dil Seçin</h2><div class="g">
-<div class="i s"><span class="c">TR</span> <span class="n">Türkçe</span></div>
-<div class="i"><span class="c">EN</span> <span class="n">English</span></div>
-<div class="i"><span class="c">DE</span> <span class="n">Deutsch</span></div>
-<div class="i"><span class="c">FR</span> <span class="n">Français</span></div>
+<h2>Dil Seçin</h2><div class="grid">
+<div class="item sel"><span class="code">TR</span> <span class="name">Türkçe</span></div>
+<div class="item"><span class="code">EN</span> <span class="name">English</span></div>
+<div class="item"><span class="code">DE</span> <span class="name">Deutsch</span></div>
+<div class="item"><span class="code">FR</span> <span class="name">Français</span></div>
 </div>
 <div class="region"><p style="color:#86868b;font-size:13px;margin-bottom:4px">Bölge:</p>
 <select><option>Türkiye</option><option>ABD</option><option>Almanya</option><option>Fransa</option></select></div>
 </body></html>
 S2
 
-# Slayt 3: Disk + Bölümleme
+# Slayt 3: Disk ve Bölümleme
 cat > "$S/disk.html" << 'S3'
 <!DOCTYPE html><html lang="tr"><head><meta charset="UTF-8"><style>
-*{margin:0;padding:0}body{background:#fff;text-align:center;font-family:sans-serif;padding:40px}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#fff;color:#1d1d1f;text-align:center;font-family:-apple-system,sans-serif;padding:40px}
 h2{font-size:18px;font-weight:600;margin-bottom:20px}
-.d{background:rgba(0,0,0,.03);border:1.5px solid rgba(0,0,0,.08);border-radius:10px;padding:16px;margin:10px auto;max-width:400px;text-align:left;display:flex;align-items:center;gap:12px}
-.d.s{border-color:#0071e3;background:rgba(0,113,227,.08)}
-.ic{width:32px;height:32px;background:#86868b;border-radius:6px}
-.dn{font-weight:500;font-size:15px}.dd{color:#86868b;font-size:12px}
+.disk{background:rgba(0,0,0,.03);border:1.5px solid rgba(0,0,0,.08);border-radius:10px;padding:16px;margin:10px auto;max-width:400px;text-align:left;display:flex;align-items:center;gap:12px}
+.disk.sel{border-color:#0071e3;background:rgba(0,113,227,.08)}
+.icon{width:32px;height:32px;background:#86868b;border-radius:6px;flex-shrink:0}
+.dname{font-weight:500;font-size:15px}.ddetail{color:#86868b;font-size:12px}
 .partition{margin-top:20px;background:rgba(0,0,0,.05);border-radius:6px;padding:12px;max-width:400px;margin:20px auto}
 .bar{display:flex;height:24px;border-radius:4px;overflow:hidden}
 .used{background:#0071e3;width:40%}.free{background:rgba(0,0,0,.1);width:25%}.new{background:#34c759;width:35%}
 </style></head><body>
 <h2>Kurulum Diski Seçin</h2>
-<div class="d s"><div class="ic"></div><div><div class="dn">Darwin HD</div><div class="dd">APFS · 476 GB kullanılabilir</div></div></div>
-<div class="d"><div class="ic"></div><div><div class="dn">Harici SSD</div><div class="dd">exFAT · 210 GB kullanılabilir</div></div></div>
+<div class="disk sel"><div class="icon"></div><div><div class="dname">Darwin HD</div><div class="ddetail">APFS · 476 GB kullanılabilir</div></div></div>
+<div class="disk"><div class="icon"></div><div><div class="dname">Harici SSD</div><div class="ddetail">exFAT · 210 GB kullanılabilir</div></div></div>
 <div class="partition"><p style="color:#86868b;font-size:12px;margin-bottom:8px">Disk Bölümleme</p>
 <div class="bar"><div class="used"></div><div class="free"></div><div class="new"></div></div>
 <p style="color:#86868b;font-size:11px;margin-top:4px">Sistem 200GB | Boş 130GB | Yeni 180GB</p></div>
@@ -352,13 +419,14 @@ S3
 # Slayt 4: Kullanıcı + İlerleme
 cat > "$S/progress.html" << 'S4'
 <!DOCTYPE html><html lang="tr"><head><meta charset="UTF-8"><style>
-*{margin:0;padding:0}body{background:#fff;text-align:center;font-family:sans-serif;padding:40px}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#fff;color:#1d1d1f;text-align:center;font-family:-apple-system,sans-serif;padding:40px}
 h2{font-size:18px;font-weight:600;margin-bottom:20px}
-.b{width:300px;height:6px;background:rgba(0,0,0,.08);border-radius:3px;margin:20px auto;overflow:hidden}
-.f{height:100%;background:linear-gradient(90deg,#0071e3,#5e5ce6);border-radius:3px;width:45%;animation:fi 3s infinite}
-@keyframes fi{0%{width:10%}50%{width:70%}100%{width:95%}}
-.st{display:flex;justify-content:space-between;max-width:400px;margin:20px auto;font-size:11px;color:#86868b}
-.sd{color:#34c759}.sc{color:#0071e3}.t{color:#86868b;font-size:13px;margin-top:8px}
+.bar{width:300px;height:6px;background:rgba(0,0,0,.08);border-radius:3px;margin:20px auto;overflow:hidden}
+.fill{height:100%;background:linear-gradient(90deg,#0071e3,#5e5ce6);border-radius:3px;width:45%;animation:fill 3s infinite}
+@keyframes fill{0%{width:10%}50%{width:70%}100%{width:95%}}
+.steps{display:flex;justify-content:space-between;max-width:400px;margin:20px auto;font-size:11px;color:#86868b}
+.sdone{color:#34c759}.scurr{color:#0071e3}.time{color:#86868b;font-size:13px;margin-top:8px}
 .user-form{text-align:left;max-width:300px;margin:20px auto}
 .user-form input{width:100%;padding:10px;border:1.5px solid rgba(0,0,0,.1);border-radius:8px;margin-bottom:8px;font-size:14px}
 </style></head><body>
@@ -370,43 +438,81 @@ h2{font-size:18px;font-weight:600;margin-bottom:20px}
 <input type="password" placeholder="Parola Tekrar" value="123456">
 </div>
 <h2 style="margin-top:30px">Kurulum Devam Ediyor</h2>
-<div class="b"><div class="f"></div></div>
-<div class="t">Kalan süre: ~22 dk</div>
-<div class="st"><span class="sd">✓ Hazırlık</span><span class="sc">⟳ Kopyalama</span><span>Kurulum</span><span>Tamamlama</span></div>
+<div class="bar"><div class="fill"></div></div>
+<div class="time">Kalan süre: ~22 dk</div>
+<div class="steps">
+<span class="sdone">✓ Hazırlık</span><span class="scurr">⟳ Kopyalama</span><span>Kurulum</span><span>Tamamlama</span>
+</div>
 </body></html>
 S4
 
-# Slayt 5: Tamamlandı + Geri Sayım
+# Slayt 5: Tamamlandı
 cat > "$S/complete.html" << 'S5'
 <!DOCTYPE html><html lang="tr"><head><meta charset="UTF-8">
 <link href="https://fonts.googleapis.com/css2?family=Pacifico&display=swap" rel="stylesheet"><style>
-*{margin:0;padding:0}body{background:#fff;text-align:center;font-family:sans-serif;padding:40px}
-.h{font-family:'Pacifico',cursive;font-size:60px;display:flex;justify-content:center;gap:4px;margin-bottom:20px}
-.h1{color:#8B5CF6}.h2{color:#EC4899}.h3{color:#EF4444}.h4{color:#F97316}
-.h5{background:linear-gradient(90deg,#FBBF24,#F59E0B,#10B981);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
-.t{font-size:18px;font-weight:600;color:#1d1d1f}.s{font-size:13px;color:#86868b}
-.c{font-size:48px;font-weight:300;color:#1d1d1f;margin:20px 0}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#fff;text-align:center;font-family:-apple-system,sans-serif;padding:40px}
+.hello{font-family:'Pacifico',cursive;font-size:60px;display:flex;justify-content:center;gap:4px;margin-bottom:20px}
+.h{color:#8B5CF6}.e{color:#EC4899}.l1{color:#EF4444}.l2{color:#F97316}
+.o{background:linear-gradient(90deg,#FBBF24,#F59E0B,#10B981);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.title{font-size:18px;font-weight:600;color:#1d1d1f;margin-bottom:6px}
+.subtitle{font-size:13px;color:#86868b}
+.countdown{font-size:48px;font-weight:300;color:#1d1d1f;margin:20px 0}
 </style></head><body>
-<div class="h"><span class="h1">h</span><span class="h2">e</span><span class="h3">l</span><span class="h4">l</span><span class="h5">o</span></div>
-<div class="t">Kurulum Tamamlandı!</div><div class="s">OpenDarwin başarıyla yüklendi</div>
-<div class="c">10</div><div class="s">saniye içinde yeniden başlatılacak...</div>
+<div class="hello"><span class="h">h</span><span class="e">e</span><span class="l1">l</span><span class="l2">l</span><span class="o">o</span></div>
+<div class="title">Kurulum Tamamlandı!</div>
+<div class="subtitle">OpenDarwin başarıyla yüklendi</div>
+<div class="countdown">10</div>
+<div class="subtitle">saniye içinde yeniden başlatılacak...</div>
 </body></html>
 S5
 
-apt clean 2>/dev/null || true
+# Temizlik
+apt clean
 rm -rf /tmp/*
-echo "KURULUM EKRANI TAMAM"
-HOOK
+ENDCHROOT
 
-chmod +x config/hooks/normal/1000-opendarwin.hook.chroot
+# ── 5. Chroot'tan çıkış ve kaynakları temizleme ──
+umount $ROOTFS/dev $ROOTFS/proc $ROOTFS/sys
 
-echo "ISO oluşturuluyor..."
-sudo lb build 2>&1 | tee /tmp/build.log
+# ── 6. Kernel ve initrd kopyalama ──
+info "Kernel ve initrd kopyalanıyor..."
+cp $ROOTFS/boot/vmlinuz-* $ISO_DIR/casper/vmlinuz
+cp $ROOTFS/boot/initrd.img-* $ISO_DIR/casper/initrd
 
-if [ -f "live-image-arm64.iso" ]; then
-    echo "ISO HAZIR! live-image-arm64.iso"
-    ls -lh live-image-arm64.iso
-else
-    echo "HATA!"
-    tail -30 /tmp/build.log
-fi
+# ── 7. SquashFS oluştur ──
+info "SquashFS sıkıştırılıyor..."
+mksquashfs $ROOTFS $ISO_DIR/casper/filesystem.squashfs -comp xz -b 1M -noappend
+
+# ── 8. Bootloader dosyaları ──
+cat > $ISO_DIR/isolinux/isolinux.cfg << 'ISOLINUX'
+default live
+label live
+  kernel /casper/vmlinuz
+  append initrd=/casper/initrd boot=casper quiet splash --
+ISOLINUX
+
+cat > $ISO_DIR/boot/grub/grub.cfg << 'GRUB'
+set timeout=5
+menuentry "OpenDarwin 1.0 ARM64" {
+    linux /casper/vmlinuz boot=casper quiet splash
+    initrd /casper/initrd
+}
+GRUB
+
+# ── 9. ISO'yu oluştur ──
+info "ISO oluşturuluyor..."
+cd $ISO_DIR
+xorriso -as mkisofs \
+    -r -V "OpenDarwin 1.0 ARM" \
+    -o ~/opendarwin-arm64.iso \
+    -J -l \
+    -b isolinux/isolinux.bin \
+    -c isolinux/boot.cat \
+    -no-emul-boot -boot-load-size 4 -boot-info-table \
+    -eltorito-alt-boot -e boot/grub/efi.img -no-emul-boot \
+    -isohybrid-gpt-basdat \
+    .
+
+log "ISO hazır: ~/opendarwin-arm64.iso"
+ls -lh ~/opendarwin-arm64.iso
