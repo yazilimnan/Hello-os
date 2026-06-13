@@ -1,7 +1,7 @@
 #!/bin/bash
 # ╔══════════════════════════════════════════════════════════════════╗
-# ║   OpenDarwin 1.0 – Boot + Monterey GRUB (Tam Otomatik)         ║
-# ║   Ubuntu 24.04 Noble – GitHub Codespaces                       ║
+# ║   OpenDarwin 1.0 – TÜM ÖZELLİKLER (Boot + Kurulum + Temalar)  ║
+# ║   Ubuntu 24.04 Noble – GitHub Codespaces (Tek Betik)           ║
 # ╚══════════════════════════════════════════════════════════════════╝
 
 set -e
@@ -11,14 +11,17 @@ info()  { echo -e "${B}[*]${N} $1"; }
 err()   { echo -e "${R}[X]${N} $1"; exit 1; }
 
 clear
-echo -e "${B}══════════════════════════════════════════════════════${N}"
-echo -e "${B}   OpenDarwin 1.0 ISO Builder – Boot + GRUB + Monterey${N}"
-echo -e "${B}══════════════════════════════════════════════════════${N}"
+echo -e "${B}"
+echo "╔══════════════════════════════════════════╗"
+echo "║   OpenDarwin 1.0 ISO Builder            ║"
+echo "║   GNOME + Wayland + Monterey GRUB       ║"
+echo "╚══════════════════════════════════════════╝"
+echo -e "${N}"
 
 # ── Disk kontrolü ──
 DISK_FREE=$(df -BG /tmp | awk 'NR==2{print $4}' | sed 's/G//')
 info "Disk: ${DISK_FREE} GB"
-[ "$DISK_FREE" -lt 20 ] && err "En az 20 GB boş alan gerekli!"
+[ "$DISK_FREE" -lt 18 ] && err "En az 18 GB boş alan gerekli!"
 
 # ── Çalışma dizini ──
 WORK="/tmp/opendarwin-build"
@@ -32,7 +35,7 @@ info "Gerekli paketler kuruluyor..."
 sudo apt update -qq
 sudo apt install -y -qq \
     live-build live-config live-boot live-manual debian-archive-keyring \
-    syslinux syslinux-common isolinux xorriso p7zip-full wget \
+    isolinux syslinux-common xorriso p7zip-full wget \
     grub-efi-amd64-bin grub-pc-bin grub2-common
 log "Paketler hazır"
 
@@ -60,7 +63,7 @@ log "Konfigürasyon tamam"
 # ── Dizinler ──
 mkdir -p config/package-lists config/hooks/normal
 
-# ── Paket listesi ──
+# ── Paket listesi (Wayland destekli GNOME) ──
 cat > config/package-lists/opendarwin.list.chroot << 'PKG'
 gnome-session
 gnome-shell
@@ -100,7 +103,7 @@ locales
 tzdata
 PKG
 
-# ── Özelleştirme hook’u (Monterey GRUB + Plymouth + Ubiquity) ──
+# ── Özelleştirme hook’u (TÜM özellikler) ──
 info "Hook oluşturuluyor..."
 cat > config/hooks/normal/1000-opendarwin-complete.hook.chroot << 'FULLHOOK'
 #!/bin/bash
@@ -318,16 +321,19 @@ autologin-user-timeout=0
 autologin-session=ubuntu
 LIGHTDM
 
-# 11. Ubiquity CSS (beyaz kurulum arayüzü)
+# 11. Ubiquity CSS (beyaz kurulum arayüzü – TAM)
 echo "[11/16] Kurulum arayüzü CSS..."
 mkdir -p /usr/share/ubiquity/gtk
 
 cat > /usr/share/ubiquity/gtk/ubiquity.css << 'CSS'
+/* OpenDarwin Kurulum Teması – HTML'deki gibi */
 @define-color bg #ffffff;
 @define-color fg #1d1d1f;
 @define-color ac #0071e3;
 @define-color sc #86868b;
 @define-color bd rgba(0,0,0,0.08);
+@define-color hb rgba(0,113,227,0.05);
+@define-color sb rgba(0,113,227,0.08);
 
 * { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
 
@@ -339,7 +345,6 @@ window, .ubiquity, box, notebook, .live-installer, dialog { background-color: @b
     border-bottom: 1px solid @bd;
     padding: 12px 16px; min-height: 36px;
 }
-
 button.titlebutton.close { background: #ff5f57; min-width: 12px; min-height: 12px; border-radius: 50%; }
 button.titlebutton.minimize { background: #febc2e; min-width: 12px; min-height: 12px; border-radius: 50%; }
 button.titlebutton.maximize { background: #28c840; min-width: 12px; min-height: 12px; border-radius: 50%; }
@@ -352,21 +357,31 @@ button.suggested-action, button.primary {
     padding: 10px 28px; font-weight: 500; border: none;
     box-shadow: 0 2px 8px rgba(0,113,227,0.2);
 }
-button.suggested-action:hover { background: #0077ed; box-shadow: 0 4px 12px rgba(0,113,227,0.3); }
-button.secondary { background: rgba(0,0,0,0.05); color: @fg; border: 1px solid @bd; border-radius: 8px; padding: 10px 28px; }
+button.suggested-action:hover, button.primary:hover {
+    background: #0077ed; box-shadow: 0 4px 12px rgba(0,113,227,0.3); transform: translateY(-1px);
+}
+button.secondary {
+    background: rgba(0,0,0,0.05); color: @fg;
+    border: 1px solid @bd; border-radius: 8px; padding: 10px 28px;
+}
 button.secondary:hover { background: rgba(0,0,0,0.08); }
 
 progressbar { background: rgba(0,0,0,0.08); border-radius: 3px; min-height: 6px; }
 progressbar progress { background: linear-gradient(90deg, #0071e3, #5e5ce6); border-radius: 3px; }
 
-entry, input { background: rgba(0,0,0,0.03); border: 1.5px solid @bd; border-radius: 8px; padding: 10px 14px; font-size: 14px; color: @fg; }
+entry, input {
+    background: rgba(0,0,0,0.03); border: 1.5px solid @bd;
+    border-radius: 8px; padding: 10px 14px; font-size: 14px; color: @fg;
+}
 entry:focus, input:focus { border-color: @ac; box-shadow: 0 0 0 3px rgba(0,113,227,0.1); outline: none; }
 
-switch { background: rgba(0,0,0,0.15); border-radius: 12px; }
+switch { background: rgba(0,0,0,0.15); border-radius: 12px; min-width: 44px; min-height: 24px; }
 switch:checked { background: @ac; }
 
-treeview, .disk-list, list { background: rgba(0,0,0,0.03); border: 1.5px solid @bd; border-radius: 10px; padding: 4px; }
-treeview:selected, list row:selected { background: rgba(0,113,227,0.08); }
+treeview, .disk-list, list {
+    background: rgba(0,0,0,0.03); border: 1.5px solid @bd; border-radius: 10px; padding: 4px;
+}
+treeview:selected, list row:selected { background: @sb; color: @fg; }
 
 .license-text { background: rgba(0,0,0,0.02); border: 1px solid @bd; border-radius: 8px; padding: 16px; font-size: 12px; color: @sc; line-height: 1.6; }
 .network-status { background: rgba(52,199,89,0.08); border: 1px solid rgba(52,199,89,0.2); border-radius: 10px; padding: 16px; }
@@ -380,15 +395,23 @@ treeview:selected, list row:selected { background: rgba(0,113,227,0.08); }
 .step-dot.done { background: #34c759; }
 
 .language-grid { margin: 16px 0; }
-.language-option { background: rgba(0,0,0,0.03); border: 1.5px solid @bd; border-radius: 10px; padding: 14px; margin: 4px; }
-.language-option:hover { border-color: @ac; background: rgba(0,113,227,0.05); }
-.language-option:checked { border-color: @ac; background: rgba(0,113,227,0.08); box-shadow: 0 0 0 3px rgba(0,113,227,0.1); }
+.language-option, .language-item {
+    background: rgba(0,0,0,0.03); border: 1.5px solid @bd;
+    border-radius: 10px; padding: 14px; margin: 4px;
+}
+.language-option:hover { border-color: @ac; background: @hb; }
+.language-option:checked, .language-option.selected {
+    border-color: @ac; background: @sb; box-shadow: 0 0 0 3px rgba(0,113,227,0.1);
+}
 
 .theme-option { border-radius: 10px; padding: 20px 16px; border: 2px solid transparent; text-align: center; margin: 4px; }
 .theme-option.light { background: #ffffff; border-color: @bd; }
 .theme-option.dark { background: @fg; color: #ffffff; }
 .theme-option.auto { background: linear-gradient(135deg, #ffffff 50%, @fg 50%); }
-.theme-option:checked { border-color: @ac !important; box-shadow: 0 0 0 3px rgba(0,113,227,0.15); }
+.theme-option:checked, .theme-option.selected { border-color: @ac !important; box-shadow: 0 0 0 3px rgba(0,113,227,0.15); }
+
+checkbutton, radiobutton { color: @fg; }
+checkbutton:checked, radiobutton:checked { color: @ac; }
 CSS
 
 mkdir -p /etc/ubiquity
@@ -399,14 +422,17 @@ gtk_theme=MacTahoe
 icon_theme=MacTahoe
 UBCNF
 
-# 12. Kurulum slaytları
+# 12. Kurulum slaytları (5 adet – TAM HTML)
 echo "[12/16] Kurulum slaytları..."
 S=/usr/share/ubiquity-slideshow/slides/l10n/tr
 mkdir -p "$S"
 
 cat > "$S/welcome.html" << 'SLIDE1'
-<!DOCTYPE html><html lang="tr"><head><meta charset="UTF-8">
-<link href="https://fonts.googleapis.com/css2?family=Pacifico&display=swap" rel="stylesheet"><style>
+<!DOCTYPE html>
+<html lang="tr">
+<head><meta charset="UTF-8">
+<link href="https://fonts.googleapis.com/css2?family=Pacifico&display=swap" rel="stylesheet">
+<style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{background:#fff;text-align:center;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;padding:60px 40px}
 .hello-text{font-family:'Pacifico',cursive;font-size:90px;display:flex;justify-content:center;gap:4px;margin-bottom:24px}
