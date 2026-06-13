@@ -1,7 +1,7 @@
 #!/bin/bash
 # ╔══════════════════════════════════════════════════════════════════╗
-# ║   OpenDarwin 1.0 – GNOME + Wayland + Plymouth + Monterey GRUB  ║
-# ║   Ubuntu 24.04 Noble – GitHub Codespaces (install.sh ile tema)  ║
+# ║   OpenDarwin 1.0 – Boot + Monterey GRUB (Tam Otomatik)         ║
+# ║   Ubuntu 24.04 Noble – GitHub Codespaces                       ║
 # ╚══════════════════════════════════════════════════════════════════╝
 
 set -e
@@ -11,17 +11,14 @@ info()  { echo -e "${B}[*]${N} $1"; }
 err()   { echo -e "${R}[X]${N} $1"; exit 1; }
 
 clear
-echo -e "${B}"
-echo "╔══════════════════════════════════════════╗"
-echo "║   OpenDarwin 1.0 ISO Builder            ║"
-echo "║   GNOME + Wayland + Monterey GRUB       ║"
-echo "╚══════════════════════════════════════════╝"
-echo -e "${N}"
+echo -e "${B}══════════════════════════════════════════════════════${N}"
+echo -e "${B}   OpenDarwin 1.0 ISO Builder – Boot + GRUB + Monterey${N}"
+echo -e "${B}══════════════════════════════════════════════════════${N}"
 
 # ── Disk kontrolü ──
 DISK_FREE=$(df -BG /tmp | awk 'NR==2{print $4}' | sed 's/G//')
 info "Disk: ${DISK_FREE} GB"
-[ "$DISK_FREE" -lt 18 ] && err "En az 18 GB boş alan gerekli!"
+[ "$DISK_FREE" -lt 20 ] && err "En az 20 GB boş alan gerekli!"
 
 # ── Çalışma dizini ──
 WORK="/tmp/opendarwin-build"
@@ -35,7 +32,8 @@ info "Gerekli paketler kuruluyor..."
 sudo apt update -qq
 sudo apt install -y -qq \
     live-build live-config live-boot live-manual debian-archive-keyring \
-    isolinux syslinux-common xorriso p7zip-full wget
+    syslinux syslinux-common isolinux xorriso p7zip-full wget \
+    grub-efi-amd64-bin grub-pc-bin grub2-common
 log "Paketler hazır"
 
 # ── Live‑build konfigürasyonu ──
@@ -62,7 +60,7 @@ log "Konfigürasyon tamam"
 # ── Dizinler ──
 mkdir -p config/package-lists config/hooks/normal
 
-# ── Paket listesi (Wayland destekli GNOME) ──
+# ── Paket listesi ──
 cat > config/package-lists/opendarwin.list.chroot << 'PKG'
 gnome-session
 gnome-shell
@@ -102,7 +100,7 @@ locales
 tzdata
 PKG
 
-# ── Özelleştirme hook’u (TÜM özellikler + GRUB teması install.sh ile) ──
+# ── Özelleştirme hook’u (Monterey GRUB + Plymouth + Ubiquity) ──
 info "Hook oluşturuluyor..."
 cat > config/hooks/normal/1000-opendarwin-complete.hook.chroot << 'FULLHOOK'
 #!/bin/bash
@@ -270,20 +268,18 @@ echo "127.0.1.1 opendarwin" >> /etc/hosts 2>/dev/null || true
 [ -f /etc/lsb-release ] && sed -i 's/DISTRIB_ID=.*/DISTRIB_ID=OpenDarwin/' /etc/lsb-release 2>/dev/null || true
 [ -f /etc/lsb-release ] && sed -i 's/DISTRIB_DESCRIPTION=.*/DISTRIB_DESCRIPTION="OpenDarwin 1.0"/' /etc/lsb-release 2>/dev/null || true
 
-# 9. GRUB + Monterey teması (install.sh ile kurulum)
-echo "[09/16] GRUB + Monterey teması (install.sh)..."
+# 9. GRUB + Monterey teması (install.sh ile)
+echo "[09/16] GRUB + Monterey teması..."
 mkdir -p /etc/default/grub.d
 cd /tmp
 rm -rf monterey-grub-theme
 git clone --depth=1 https://github.com/sandesh236/monterey-grub-theme.git 2>/dev/null || true
 if [ -d monterey-grub-theme ]; then
     cd monterey-grub-theme
-    # Temanın kendi install.sh betiğini çalıştır
     if [ -f install.sh ]; then
         chmod +x install.sh
-        ./install.sh   # Bu genellikle /boot/grub/themes/monterey altına kurar
+        ./install.sh   # /boot/grub/themes/monterey'ye kurar
     else
-        # Yedek olarak manuel kopyalama
         mkdir -p /boot/grub/themes/monterey
         cp -r . /boot/grub/themes/monterey/
     fi
@@ -322,19 +318,16 @@ autologin-user-timeout=0
 autologin-session=ubuntu
 LIGHTDM
 
-# 11. Ubiquity CSS (beyaz kurulum arayüzü – TAM)
+# 11. Ubiquity CSS (beyaz kurulum arayüzü)
 echo "[11/16] Kurulum arayüzü CSS..."
 mkdir -p /usr/share/ubiquity/gtk
 
 cat > /usr/share/ubiquity/gtk/ubiquity.css << 'CSS'
-/* OpenDarwin Kurulum Teması – HTML'deki gibi */
 @define-color bg #ffffff;
 @define-color fg #1d1d1f;
 @define-color ac #0071e3;
 @define-color sc #86868b;
 @define-color bd rgba(0,0,0,0.08);
-@define-color hb rgba(0,113,227,0.05);
-@define-color sb rgba(0,113,227,0.08);
 
 * { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
 
@@ -346,6 +339,7 @@ window, .ubiquity, box, notebook, .live-installer, dialog { background-color: @b
     border-bottom: 1px solid @bd;
     padding: 12px 16px; min-height: 36px;
 }
+
 button.titlebutton.close { background: #ff5f57; min-width: 12px; min-height: 12px; border-radius: 50%; }
 button.titlebutton.minimize { background: #febc2e; min-width: 12px; min-height: 12px; border-radius: 50%; }
 button.titlebutton.maximize { background: #28c840; min-width: 12px; min-height: 12px; border-radius: 50%; }
@@ -358,31 +352,21 @@ button.suggested-action, button.primary {
     padding: 10px 28px; font-weight: 500; border: none;
     box-shadow: 0 2px 8px rgba(0,113,227,0.2);
 }
-button.suggested-action:hover, button.primary:hover {
-    background: #0077ed; box-shadow: 0 4px 12px rgba(0,113,227,0.3); transform: translateY(-1px);
-}
-button.secondary {
-    background: rgba(0,0,0,0.05); color: @fg;
-    border: 1px solid @bd; border-radius: 8px; padding: 10px 28px;
-}
+button.suggested-action:hover { background: #0077ed; box-shadow: 0 4px 12px rgba(0,113,227,0.3); }
+button.secondary { background: rgba(0,0,0,0.05); color: @fg; border: 1px solid @bd; border-radius: 8px; padding: 10px 28px; }
 button.secondary:hover { background: rgba(0,0,0,0.08); }
 
 progressbar { background: rgba(0,0,0,0.08); border-radius: 3px; min-height: 6px; }
 progressbar progress { background: linear-gradient(90deg, #0071e3, #5e5ce6); border-radius: 3px; }
 
-entry, input {
-    background: rgba(0,0,0,0.03); border: 1.5px solid @bd;
-    border-radius: 8px; padding: 10px 14px; font-size: 14px; color: @fg;
-}
+entry, input { background: rgba(0,0,0,0.03); border: 1.5px solid @bd; border-radius: 8px; padding: 10px 14px; font-size: 14px; color: @fg; }
 entry:focus, input:focus { border-color: @ac; box-shadow: 0 0 0 3px rgba(0,113,227,0.1); outline: none; }
 
-switch { background: rgba(0,0,0,0.15); border-radius: 12px; min-width: 44px; min-height: 24px; }
+switch { background: rgba(0,0,0,0.15); border-radius: 12px; }
 switch:checked { background: @ac; }
 
-treeview, .disk-list, list {
-    background: rgba(0,0,0,0.03); border: 1.5px solid @bd; border-radius: 10px; padding: 4px;
-}
-treeview:selected, list row:selected { background: @sb; color: @fg; }
+treeview, .disk-list, list { background: rgba(0,0,0,0.03); border: 1.5px solid @bd; border-radius: 10px; padding: 4px; }
+treeview:selected, list row:selected { background: rgba(0,113,227,0.08); }
 
 .license-text { background: rgba(0,0,0,0.02); border: 1px solid @bd; border-radius: 8px; padding: 16px; font-size: 12px; color: @sc; line-height: 1.6; }
 .network-status { background: rgba(52,199,89,0.08); border: 1px solid rgba(52,199,89,0.2); border-radius: 10px; padding: 16px; }
@@ -390,32 +374,21 @@ treeview:selected, list row:selected { background: @sb; color: @fg; }
 .install-log { background: @fg; color: #34c759; font-family: monospace; font-size: 11px; padding: 16px; border-radius: 8px; }
 .reboot-countdown { font-size: 48px; font-weight: 300; color: @fg; margin: 20px 0; }
 
-/* Adım göstergeleri */
 .step-indicator { margin: 20px 0; }
 .step-dot { min-width: 8px; min-height: 8px; border-radius: 50%; background: rgba(0,0,0,0.15); margin: 0 4px; }
 .step-dot.active { background: @ac; min-width: 24px; border-radius: 4px; box-shadow: 0 0 8px rgba(0,113,227,0.4); }
 .step-dot.done { background: #34c759; }
 
-/* Dil seçimi */
 .language-grid { margin: 16px 0; }
-.language-option, .language-item {
-    background: rgba(0,0,0,0.03); border: 1.5px solid @bd;
-    border-radius: 10px; padding: 14px; margin: 4px;
-}
-.language-option:hover { border-color: @ac; background: @hb; }
-.language-option:checked, .language-option.selected {
-    border-color: @ac; background: @sb; box-shadow: 0 0 0 3px rgba(0,113,227,0.1);
-}
+.language-option { background: rgba(0,0,0,0.03); border: 1.5px solid @bd; border-radius: 10px; padding: 14px; margin: 4px; }
+.language-option:hover { border-color: @ac; background: rgba(0,113,227,0.05); }
+.language-option:checked { border-color: @ac; background: rgba(0,113,227,0.08); box-shadow: 0 0 0 3px rgba(0,113,227,0.1); }
 
-/* Tema seçimi */
 .theme-option { border-radius: 10px; padding: 20px 16px; border: 2px solid transparent; text-align: center; margin: 4px; }
 .theme-option.light { background: #ffffff; border-color: @bd; }
 .theme-option.dark { background: @fg; color: #ffffff; }
 .theme-option.auto { background: linear-gradient(135deg, #ffffff 50%, @fg 50%); }
-.theme-option:checked, .theme-option.selected { border-color: @ac !important; box-shadow: 0 0 0 3px rgba(0,113,227,0.15); }
-
-checkbutton, radiobutton { color: @fg; }
-checkbutton:checked, radiobutton:checked { color: @ac; }
+.theme-option:checked { border-color: @ac !important; box-shadow: 0 0 0 3px rgba(0,113,227,0.15); }
 CSS
 
 mkdir -p /etc/ubiquity
@@ -426,17 +399,14 @@ gtk_theme=MacTahoe
 icon_theme=MacTahoe
 UBCNF
 
-# 12. Kurulum slaytları (5 adet – TAM HTML)
+# 12. Kurulum slaytları
 echo "[12/16] Kurulum slaytları..."
 S=/usr/share/ubiquity-slideshow/slides/l10n/tr
 mkdir -p "$S"
 
 cat > "$S/welcome.html" << 'SLIDE1'
-<!DOCTYPE html>
-<html lang="tr">
-<head><meta charset="UTF-8">
-<link href="https://fonts.googleapis.com/css2?family=Pacifico&display=swap" rel="stylesheet">
-<style>
+<!DOCTYPE html><html lang="tr"><head><meta charset="UTF-8">
+<link href="https://fonts.googleapis.com/css2?family=Pacifico&display=swap" rel="stylesheet"><style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{background:#fff;text-align:center;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;padding:60px 40px}
 .hello-text{font-family:'Pacifico',cursive;font-size:90px;display:flex;justify-content:center;gap:4px;margin-bottom:24px}
@@ -533,7 +503,7 @@ echo "[14/16] Temizlik..."
 apt clean 2>/dev/null || true
 rm -rf /tmp/* /var/cache/apt/*
 
-# 15. İlk açılış sihirbazını devre dışı bırak
+# 15. İlk açılış sihirbazı
 echo "[15/16] İlk açılış sihirbazı..."
 [ -f /etc/xdg/autostart/gnome-initial-setup-first-login.desktop ] && \
     echo "X-GNOME-Autostart-enabled=false" >> /etc/xdg/autostart/gnome-initial-setup-first-login.desktop 2>/dev/null || true
@@ -557,30 +527,34 @@ info "ISO içeriği oluşturuluyor (20‑40 dk)..."
 sudo lb build 2>&1 | tee /tmp/build-opendarwin.log
 log "Live‑build tamamlandı"
 
-# ── Boot dosyalarını ekleyip yeniden ISO oluştur ──
-info "Boot dosyaları ekleniyor..."
-BUILD_DIR="$WORK"
-BINARY_ISO="$BUILD_DIR/live-image-amd64.iso"
-if [ ! -f "$BINARY_ISO" ]; then
-    BINARY_ISO="$BUILD_DIR/chroot/binary.hybrid.iso"
-fi
+# ── ISO’yu bul ──
+BINARY_ISO="$WORK/live-image-amd64.iso"
+[ ! -f "$BINARY_ISO" ] && BINARY_ISO="$WORK/chroot/binary.hybrid.iso"
 [ ! -f "$BINARY_ISO" ] && err "Live‑build ISO'su bulunamadı!"
 
+# ── Boot dosyalarını ekle ──
+info "Boot dosyaları (syslinux) ekleniyor..."
 TMPISO="/tmp/opendarwin-iso"
 rm -rf "$TMPISO"
 mkdir -p "$TMPISO"
 7z x "$BINARY_ISO" -o"$TMPISO" >/dev/null
 
+# ISOLINUX dosyalarını ekle
 mkdir -p "$TMPISO/isolinux"
-cp /usr/lib/ISOLINUX/isolinux.bin "$TMPISO/isolinux/" 2>/dev/null || true
-cp /usr/lib/syslinux/modules/bios/ldlinux.c32 "$TMPISO/isolinux/" 2>/dev/null || true
-cp /usr/lib/syslinux/modules/bios/menu.c32 "$TMPISO/isolinux/" 2>/dev/null || true
-cp /usr/lib/syslinux/modules/bios/libutil.c32 "$TMPISO/isolinux/" 2>/dev/null || true
-cp /usr/lib/syslinux/modules/bios/libcom32.c32 "$TMPISO/isolinux/" 2>/dev/null || true
+for f in isolinux.bin ldlinux.c32 menu.c32 libutil.c32 libcom32.c32; do
+    if [ -f "/usr/lib/ISOLINUX/$f" ]; then
+        cp "/usr/lib/ISOLINUX/$f" "$TMPISO/isolinux/"
+    elif [ -f "/usr/lib/syslinux/modules/bios/$f" ]; then
+        cp "/usr/lib/syslinux/modules/bios/$f" "$TMPISO/isolinux/"
+    fi
+done
 
+# Kernel ve initrd adlarını bul
 KERNEL=$(ls "$TMPISO/casper"/vmlinuz-* 2>/dev/null | head -1 | xargs basename)
 INITRD=$(ls "$TMPISO/casper"/initrd.img-* 2>/dev/null | head -1 | xargs basename)
+[ -z "$KERNEL" ] && err "Kernel bulunamadı!"
 
+# ISOLINUX yapılandırması
 cat > "$TMPISO/isolinux/isolinux.cfg" << EOF
 UI menu.c32
 PROMPT 0
@@ -600,6 +574,7 @@ LABEL install
   APPEND initrd=/casper/${INITRD} boot=casper only-ubiquity quiet splash --
 EOF
 
+# GRUB yapılandırması
 mkdir -p "$TMPISO/boot/grub"
 if [ ! -f "$TMPISO/boot/grub/efi.img" ]; then
     dd if=/dev/zero of="$TMPISO/boot/grub/efi.img" bs=1M count=5 2>/dev/null
@@ -618,10 +593,12 @@ menuentry "OpenDarwin - Install" {
 }
 EOF
 
+# Hibrit MBR bul
 MBR="/usr/lib/ISOLINUX/isohdpfx.bin"
 [ ! -f "$MBR" ] && MBR="/usr/lib/syslinux/isohdpfx.bin"
 [ ! -f "$MBR" ] && MBR=""
 
+# Bootable ISO oluştur
 FINAL_ISO="/workspaces/Hello-os/opendarwin-1.0-amd64.iso"
 info "Bootable ISO oluşturuluyor..."
 cd "$TMPISO"
