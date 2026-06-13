@@ -1,7 +1,7 @@
 #!/bin/bash
 # ╔══════════════════════════════════════════════════════════════════╗
-# ║   OpenDarwin 1.0 – TÜM ÖZELLİKLER (Boot + Kurulum + Temalar)  ║
-# ║   Ubuntu 24.04 Noble – GitHub Codespaces (Tek Betik)           ║
+# ║   hello os – GNOME + Wayland + Plymouth + Monterey GRUB        ║
+# ║   Ubuntu 24.04 Noble – GitHub Codespaces (Telifsiz Sürüm)      ║
 # ╚══════════════════════════════════════════════════════════════════╝
 
 set -e
@@ -13,7 +13,7 @@ err()   { echo -e "${R}[X]${N} $1"; exit 1; }
 clear
 echo -e "${B}"
 echo "╔══════════════════════════════════════════╗"
-echo "║   OpenDarwin 1.0 ISO Builder            ║"
+echo "║   hello os ISO Builder                  ║"
 echo "║   GNOME + Wayland + Monterey GRUB       ║"
 echo "╚══════════════════════════════════════════╝"
 echo -e "${N}"
@@ -49,9 +49,9 @@ sudo lb config \
     --archive-areas "main restricted universe multiverse" \
     --parent-archive-areas "main restricted universe multiverse" \
     --bootappend-live "boot=live components splash quiet" \
-    --iso-application "OpenDarwin 1.0" \
-    --iso-volume "OpenDarwin 1.0" \
-    --iso-publisher "OpenDarwin Project" \
+    --iso-application "hello os 1.0" \
+    --iso-volume "hello os 1.0" \
+    --iso-publisher "hello os Project" \
     --memtest none \
     --apt-options "--yes" \
     --debian-installer false \
@@ -108,7 +108,7 @@ info "Hook oluşturuluyor..."
 cat > config/hooks/normal/1000-opendarwin-complete.hook.chroot << 'FULLHOOK'
 #!/bin/bash
 set -e
-echo "OpenDarwin 1.0 – Özelleştirme"
+echo "hello os – Özelleştirme"
 
 # 1. Locale
 echo "[01/16] Locale..."
@@ -140,8 +140,8 @@ echo "[04/16] Plymouth boot animasyonu..."
 mkdir -p /usr/share/plymouth/themes/opendarwin
 cat > /usr/share/plymouth/themes/opendarwin/opendarwin.plymouth << 'PLYCONF'
 [Plymouth Theme]
-Name=OpenDarwin
-Description=OpenDarwin Boot Screen – hello
+Name=hello
+Description=hello Boot Screen
 ModuleName=script
 [script]
 ImageDir=/usr/share/plymouth/themes/opendarwin
@@ -252,24 +252,22 @@ mkdir -p /usr/share/backgrounds
 convert -size 1920x1080 xc:'#000000' /usr/share/backgrounds/opendarwin-bg.png 2>/dev/null || \
 python3 -c "from PIL import Image;Image.new('RGB',(1920,1080),'black').save('/usr/share/backgrounds/opendarwin-bg.png')" 2>/dev/null || true
 
-# 8. Sistem markalaması
+# 8. Sistem markalaması (hello os)
 echo "[08/16] Sistem markalaması..."
 cat > /etc/os-release << 'OSRELEASE'
-PRETTY_NAME="OpenDarwin 1.0"
-NAME="OpenDarwin"
+PRETTY_NAME="hello os"
+NAME="hello os"
 VERSION_ID="1.0"
 VERSION="1.0"
-ID=opendarwin
+ID=hello-os
 ID_LIKE=ubuntu
-HOME_URL="https://opendarwin.org"
-SUPPORT_URL="https://opendarwin.org/support"
-BUG_REPORT_URL="https://opendarwin.org/bugs"
+HOME_URL="https://hello-os.org"
 OSRELEASE
-echo "OpenDarwin 1.0" > /etc/opendarwin-release
-echo "opendarwin" > /etc/hostname
-echo "127.0.1.1 opendarwin" >> /etc/hosts 2>/dev/null || true
-[ -f /etc/lsb-release ] && sed -i 's/DISTRIB_ID=.*/DISTRIB_ID=OpenDarwin/' /etc/lsb-release 2>/dev/null || true
-[ -f /etc/lsb-release ] && sed -i 's/DISTRIB_DESCRIPTION=.*/DISTRIB_DESCRIPTION="OpenDarwin 1.0"/' /etc/lsb-release 2>/dev/null || true
+echo "hello os 1.0" > /etc/opendarwin-release
+echo "hello-os" > /etc/hostname
+echo "127.0.1.1 hello-os" >> /etc/hosts 2>/dev/null || true
+[ -f /etc/lsb-release ] && sed -i 's/DISTRIB_ID=.*/DISTRIB_ID=hello-os/' /etc/lsb-release 2>/dev/null || true
+[ -f /etc/lsb-release ] && sed -i 's/DISTRIB_DESCRIPTION=.*/DISTRIB_DESCRIPTION="hello os 1.0"/' /etc/lsb-release 2>/dev/null || true
 
 # 9. GRUB + Monterey teması (install.sh ile)
 echo "[09/16] GRUB + Monterey teması..."
@@ -281,7 +279,7 @@ if [ -d monterey-grub-theme ]; then
     cd monterey-grub-theme
     if [ -f install.sh ]; then
         chmod +x install.sh
-        ./install.sh   # /boot/grub/themes/monterey'ye kurar
+        ./install.sh
     else
         mkdir -p /boot/grub/themes/monterey
         cp -r . /boot/grub/themes/monterey/
@@ -289,14 +287,11 @@ if [ -d monterey-grub-theme ]; then
 fi
 
 cat > /etc/default/grub.d/99-opendarwin.cfg << 'GRUB'
-GRUB_DISTRIBUTOR="OpenDarwin"
+GRUB_DISTRIBUTOR="hello os"
 GRUB_TIMEOUT=5
 GRUB_TIMEOUT_STYLE=menu
 GRUB_CMDLINE_LINUX_DEFAULT="quiet splash"
 GRUB_GFXMODE=1920x1080
-GRUB_BACKGROUND="#000000"
-GRUB_COLOR_NORMAL="white/black"
-GRUB_COLOR_HIGHLIGHT="magenta/black"
 GRUB_THEME="/boot/grub/themes/monterey/theme.txt"
 GRUB
 
@@ -309,16 +304,12 @@ cat > /etc/gdm3/custom.conf << 'GDM'
 [daemon]
 AutomaticLoginEnable=true
 AutomaticLogin=user
-TimedLoginEnable=true
-TimedLogin=user
-TimedLoginDelay=3
 WaylandEnable=true
 GDM
 cat > /etc/lightdm/lightdm.conf << 'LIGHTDM'
 [Seat:*]
 autologin-user=user
 autologin-user-timeout=0
-autologin-session=ubuntu
 LIGHTDM
 
 # 11. Ubiquity CSS (beyaz kurulum arayüzü – TAM)
@@ -326,7 +317,6 @@ echo "[11/16] Kurulum arayüzü CSS..."
 mkdir -p /usr/share/ubiquity/gtk
 
 cat > /usr/share/ubiquity/gtk/ubiquity.css << 'CSS'
-/* OpenDarwin Kurulum Teması – HTML'deki gibi */
 @define-color bg #ffffff;
 @define-color fg #1d1d1f;
 @define-color ac #0071e3;
@@ -451,7 +441,7 @@ body{background:#fff;text-align:center;font-family:-apple-system,BlinkMacSystemF
 </style></head><body>
 <div class="step-indicator"><div class="step-dot done"></div><div class="step-dot active"></div><div class="step-dot"></div><div class="step-dot"></div><div class="step-dot"></div></div>
 <div class="hello-text"><span class="h">h</span><span class="e">e</span><span class="l1">l</span><span class="l2">l</span><span class="o">o</span></div>
-<div class="title">OpenDarwin'e Hoş Geldiniz</div><div class="subtitle">Sürüm 1.0 – Darwin Kernel</div>
+<div class="title">hello os'a Hoş Geldiniz</div><div class="subtitle">Sürüm 1.0</div>
 </body></html>
 SLIDE1
 
@@ -515,7 +505,7 @@ body{background:#fff;text-align:center;font-family:-apple-system,sans-serif;padd
 .subtitle{font-size:13px;color:#86868b}.countdown{font-size:48px;font-weight:300;color:#1d1d1f;margin:20px 0}
 </style></head><body>
 <div class="hello"><span class="h">h</span><span class="e">e</span><span class="l1">l</span><span class="l2">l</span><span class="o">o</span></div>
-<div class="title">Kurulum Tamamlandı!</div><div class="subtitle">OpenDarwin başarıyla yüklendi</div>
+<div class="title">Kurulum Tamamlandı!</div><div class="subtitle">hello os başarıyla yüklendi</div>
 <div class="countdown">10</div><div class="subtitle">saniye içinde yeniden başlatılacak...</div>
 </body></html>
 SLIDE5
@@ -587,15 +577,15 @@ PROMPT 0
 TIMEOUT 50
 DEFAULT live
 
-MENU TITLE OpenDarwin 1.0
+MENU TITLE hello os 1.0
 
 LABEL live
-  MENU LABEL ^Start OpenDarwin
+  MENU LABEL ^Start hello os
   KERNEL /casper/${KERNEL}
   APPEND initrd=/casper/${INITRD} boot=casper quiet splash --
 
 LABEL install
-  MENU LABEL ^Install OpenDarwin
+  MENU LABEL ^Install hello os
   KERNEL /casper/${KERNEL}
   APPEND initrd=/casper/${INITRD} boot=casper only-ubiquity quiet splash --
 EOF
@@ -609,11 +599,11 @@ fi
 
 cat > "$TMPISO/boot/grub/grub.cfg" << EOF
 set timeout=5
-menuentry "OpenDarwin - Live" {
+menuentry "hello os - Live" {
     linux /casper/${KERNEL} boot=casper quiet splash
     initrd /casper/${INITRD}
 }
-menuentry "OpenDarwin - Install" {
+menuentry "hello os - Install" {
     linux /casper/${KERNEL} boot=casper only-ubiquity quiet splash
     initrd /casper/${INITRD}
 }
@@ -625,7 +615,7 @@ MBR="/usr/lib/ISOLINUX/isohdpfx.bin"
 [ ! -f "$MBR" ] && MBR=""
 
 # Bootable ISO oluştur
-FINAL_ISO="/workspaces/Hello-os/opendarwin-1.0-amd64.iso"
+FINAL_ISO="/workspaces/Hello-os/hello-os-1.0-amd64.iso"
 info "Bootable ISO oluşturuluyor..."
 cd "$TMPISO"
 if [ -n "$MBR" ]; then
@@ -636,7 +626,7 @@ if [ -n "$MBR" ]; then
         -no-emul-boot -boot-load-size 4 -boot-info-table \
         -eltorito-alt-boot -e boot/grub/efi.img -no-emul-boot \
         -isohybrid-gpt-basdat \
-        -r -V "OpenDarwin 1.0" \
+        -r -V "hello os 1.0" \
         -o "$FINAL_ISO" \
         .
 else
@@ -645,7 +635,7 @@ else
         -c isolinux/boot.cat \
         -no-emul-boot -boot-load-size 4 -boot-info-table \
         -eltorito-alt-boot -e boot/grub/efi.img -no-emul-boot \
-        -r -V "OpenDarwin 1.0" \
+        -r -V "hello os 1.0" \
         -o "$FINAL_ISO" \
         .
 fi
