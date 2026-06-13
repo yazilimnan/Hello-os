@@ -1,7 +1,7 @@
 #!/bin/bash
 # ╔══════════════════════════════════════════════════════════════════╗
 # ║   hello os – GNOME + Wayland + Plymouth + Monterey GRUB        ║
-# ║   Ubuntu 24.04 Noble – GitHub Codespaces (Telifsiz Sürüm)      ║
+# ║   Ubuntu 24.04 Noble – GitHub Codespaces (ldlinux fix)         ║
 # ╚══════════════════════════════════════════════════════════════════╝
 
 set -e
@@ -13,8 +13,7 @@ err()   { echo -e "${R}[X]${N} $1"; exit 1; }
 clear
 echo -e "${B}"
 echo "╔══════════════════════════════════════════╗"
-echo "║   hello os ISO Builder                  ║"
-echo "║   GNOME + Wayland + Monterey GRUB       ║"
+echo "║   hello os ISO Builder (ldlinux fixed)  ║"
 echo "╚══════════════════════════════════════════╝"
 echo -e "${N}"
 
@@ -63,7 +62,7 @@ log "Konfigürasyon tamam"
 # ── Dizinler ──
 mkdir -p config/package-lists config/hooks/normal
 
-# ── Paket listesi (Wayland destekli GNOME) ──
+# ── Paket listesi ──
 cat > config/package-lists/opendarwin.list.chroot << 'PKG'
 gnome-session
 gnome-shell
@@ -269,7 +268,7 @@ echo "127.0.1.1 hello-os" >> /etc/hosts 2>/dev/null || true
 [ -f /etc/lsb-release ] && sed -i 's/DISTRIB_ID=.*/DISTRIB_ID=hello-os/' /etc/lsb-release 2>/dev/null || true
 [ -f /etc/lsb-release ] && sed -i 's/DISTRIB_DESCRIPTION=.*/DISTRIB_DESCRIPTION="hello os 1.0"/' /etc/lsb-release 2>/dev/null || true
 
-# 9. GRUB + Monterey teması (install.sh ile)
+# 9. GRUB + Monterey teması
 echo "[09/16] GRUB + Monterey teması..."
 mkdir -p /etc/default/grub.d
 cd /tmp
@@ -295,7 +294,7 @@ GRUB_GFXMODE=1920x1080
 GRUB_THEME="/boot/grub/themes/monterey/theme.txt"
 GRUB
 
-# 10. Kullanıcı hesabı (Wayland)
+# 10. Kullanıcı hesabı
 echo "[10/16] Kullanıcı hesabı..."
 useradd -m -s /bin/bash -G sudo,adm,cdrom,dip,plugdev,lpadmin,netdev user 2>/dev/null || true
 echo "user:123456" | chpasswd 2>/dev/null || true
@@ -312,7 +311,7 @@ autologin-user=user
 autologin-user-timeout=0
 LIGHTDM
 
-# 11. Ubiquity CSS (beyaz kurulum arayüzü – TAM)
+# 11. Ubiquity CSS
 echo "[11/16] Kurulum arayüzü CSS..."
 mkdir -p /usr/share/ubiquity/gtk
 
@@ -412,7 +411,7 @@ gtk_theme=MacTahoe
 icon_theme=MacTahoe
 UBCNF
 
-# 12. Kurulum slaytları (5 adet – TAM HTML)
+# 12. Kurulum slaytları
 echo "[12/16] Kurulum slaytları..."
 S=/usr/share/ubiquity-slideshow/slides/l10n/tr
 mkdir -p "$S"
@@ -548,22 +547,30 @@ BINARY_ISO="$WORK/live-image-amd64.iso"
 [ ! -f "$BINARY_ISO" ] && BINARY_ISO="$WORK/chroot/binary.hybrid.iso"
 [ ! -f "$BINARY_ISO" ] && err "Live‑build ISO'su bulunamadı!"
 
-# ── Boot dosyalarını ekle ──
-info "Boot dosyaları (syslinux) ekleniyor..."
+# ── Boot dosyalarını ekle (SYSLOGIX DOSYALARINI İNDİR VE YERLEŞTİR) ──
+info "Boot dosyaları (syslinux) indiriliyor ve ekleniyor..."
 TMPISO="/tmp/opendarwin-iso"
 rm -rf "$TMPISO"
 mkdir -p "$TMPISO"
 7z x "$BINARY_ISO" -o"$TMPISO" >/dev/null
 
-# ISOLINUX dosyalarını ekle
+# Syslinux arşivini indir
+SYSLINUX_URL="https://mirrors.edge.kernel.org/pub/linux/utils/boot/syslinux/syslinux-6.03.tar.gz"
+SYSLINUX_DIR="/tmp/syslinux-6.03"
+if [ ! -d "$SYSLINUX_DIR" ]; then
+    wget -q "$SYSLINUX_URL" -O /tmp/syslinux.tar.gz
+    tar -xzf /tmp/syslinux.tar.gz -C /tmp/
+fi
+
+# ISOLINUX dizinini oluştur ve gerekli dosyaları kopyala
 mkdir -p "$TMPISO/isolinux"
-for f in isolinux.bin ldlinux.c32 menu.c32 libutil.c32 libcom32.c32; do
-    if [ -f "/usr/lib/ISOLINUX/$f" ]; then
-        cp "/usr/lib/ISOLINUX/$f" "$TMPISO/isolinux/"
-    elif [ -f "/usr/lib/syslinux/modules/bios/$f" ]; then
-        cp "/usr/lib/syslinux/modules/bios/$f" "$TMPISO/isolinux/"
-    fi
-done
+cp "$SYSLINUX_DIR/bios/core/isolinux.bin" "$TMPISO/isolinux/"
+cp "$SYSLINUX_DIR/bios/com32/elflink/ldlinux/ldlinux.c32" "$TMPISO/isolinux/"
+cp "$SYSLINUX_DIR/bios/com32/menu/menu.c32" "$TMPISO/isolinux/"
+cp "$SYSLINUX_DIR/bios/com32/libutil/libutil.c32" "$TMPISO/isolinux/"
+cp "$SYSLINUX_DIR/bios/com32/lib/libcom32.c32" "$TMPISO/isolinux/"
+# MBR dosyasını da al
+cp "$SYSLINUX_DIR/bios/mbr/isohdpfx.bin" /tmp/isohdpfx.bin
 
 # Kernel ve initrd adlarını bul
 KERNEL=$(ls "$TMPISO/casper"/vmlinuz-* 2>/dev/null | head -1 | xargs basename)
@@ -609,36 +616,21 @@ menuentry "hello os - Install" {
 }
 EOF
 
-# Hibrit MBR bul
-MBR="/usr/lib/ISOLINUX/isohdpfx.bin"
-[ ! -f "$MBR" ] && MBR="/usr/lib/syslinux/isohdpfx.bin"
-[ ! -f "$MBR" ] && MBR=""
-
 # Bootable ISO oluştur
 FINAL_ISO="/workspaces/Hello-os/hello-os-1.0-amd64.iso"
+MBR="/tmp/isohdpfx.bin"
 info "Bootable ISO oluşturuluyor..."
 cd "$TMPISO"
-if [ -n "$MBR" ]; then
-    xorriso -as mkisofs \
-        -isohybrid-mbr "$MBR" \
-        -b isolinux/isolinux.bin \
-        -c isolinux/boot.cat \
-        -no-emul-boot -boot-load-size 4 -boot-info-table \
-        -eltorito-alt-boot -e boot/grub/efi.img -no-emul-boot \
-        -isohybrid-gpt-basdat \
-        -r -V "hello os 1.0" \
-        -o "$FINAL_ISO" \
-        .
-else
-    xorriso -as mkisofs \
-        -b isolinux/isolinux.bin \
-        -c isolinux/boot.cat \
-        -no-emul-boot -boot-load-size 4 -boot-info-table \
-        -eltorito-alt-boot -e boot/grub/efi.img -no-emul-boot \
-        -r -V "hello os 1.0" \
-        -o "$FINAL_ISO" \
-        .
-fi
+xorriso -as mkisofs \
+    -isohybrid-mbr "$MBR" \
+    -b isolinux/isolinux.bin \
+    -c isolinux/boot.cat \
+    -no-emul-boot -boot-load-size 4 -boot-info-table \
+    -eltorito-alt-boot -e boot/grub/efi.img -no-emul-boot \
+    -isohybrid-gpt-basdat \
+    -r -V "hello os 1.0" \
+    -o "$FINAL_ISO" \
+    .
 
 log "Son ISO: $FINAL_ISO"
 ls -lh "$FINAL_ISO"
