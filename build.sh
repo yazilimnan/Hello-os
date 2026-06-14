@@ -1,6 +1,6 @@
 #!/bin/bash
 # ╔══════════════════════════════════════════════════════════════════╗
-# ║   hello os 1.0 – Ubuntu Boot DOSYASINI DEĞİŞTİR (Kesin Çözüm) ║
+# ║   hello os – KESİN PLYMOUTH ÇÖZÜMÜ (Kernel parametreli)       ║
 # ║   Ubuntu 24.04 Noble – GitHub Codespaces                       ║
 # ╚══════════════════════════════════════════════════════════════════╝
 
@@ -13,7 +13,7 @@ err()   { echo -e "${R}[X]${N} $1"; exit 1; }
 clear
 echo -e "${B}"
 echo "╔══════════════════════════════════════════╗"
-echo "║   hello os ISO Builder (Boot Fix)       ║"
+echo "║   hello os ISO Builder (Plymouth Fix)   ║"
 echo "╚══════════════════════════════════════════╝"
 echo -e "${N}"
 
@@ -38,7 +38,7 @@ sudo apt install -y -qq \
     grub-efi-amd64-bin grub-pc-bin grub2-common
 log "Paketler hazır"
 
-# ── Live‑build konfigürasyonu ──
+# ── Live‑build konfigürasyonu (KERNEL PARAMETRESİ EKLENDİ) ──
 info "Live‑build yapılandırılıyor..."
 sudo lb config \
     --architecture amd64 \
@@ -47,7 +47,7 @@ sudo lb config \
     --mode ubuntu \
     --archive-areas "main restricted universe multiverse" \
     --parent-archive-areas "main restricted universe multiverse" \
-    --bootappend-live "boot=live components splash quiet" \
+    --bootappend-live "boot=live components splash quiet plymouth.theme=hello" \
     --iso-application "hello os 1.0" \
     --iso-volume "hello os 1.0" \
     --iso-publisher "hello os Project" \
@@ -57,7 +57,7 @@ sudo lb config \
     --bootloader grub-efi \
     --cache false \
     --apt-indices false
-log "Konfigürasyon tamam"
+log "Konfigürasyon tamam (kernel parametresine plymouth.theme=hello eklendi)"
 
 # ── Dizinler ──
 mkdir -p config/package-lists config/hooks/normal
@@ -97,12 +97,12 @@ locales
 tzdata
 PKG
 
-# ── Özelleştirme hook'u (UBUNTU BOOT DOSYASINI DEĞİŞTİR) ──
+# ── Özelleştirme hook'u (TÜM PLYMOUTH TEMALARINI SİL + KERNEL PARAMETRESİ) ──
 info "Hook oluşturuluyor..."
 cat > config/hooks/normal/1000-hello-customization.hook.chroot << 'FULLHOOK'
 #!/bin/bash
 set -e
-echo "hello os – Özelleştirme (Ubuntu boot dosyası değiştiriliyor)"
+echo "hello os – Özelleştirme (TÜM Plymouth temaları siliniyor)"
 
 # --- 1. Locale ve zaman dilimi ---
 locale-gen tr_TR.UTF-8 en_US.UTF-8 2>/dev/null || true
@@ -126,18 +126,22 @@ git clone --depth=1 https://github.com/vinceliuice/MacTahoe-gtk-theme.git 2>/dev
 mkdir -p /usr/share/themes /usr/share/icons
 [ -d /root/.themes ] && cp -r /root/.themes/MacTahoe* /usr/share/themes/ 2>/dev/null || true
 
-# --- 4. Plymouth: Ubuntu dosyasını DEĞİŞTİR (KESİN ÇÖZÜM) ---
-echo "Plymouth: Ubuntu boot dosyası değiştiriliyor..."
-UBUNTU_THEME_DIR="/usr/share/plymouth/themes/ubuntu-logo"
-HELLO_THEME_DIR="/usr/share/plymouth/themes/hello"
+# --- 4. Plymouth: TÜM Ubuntu temalarını SİL, sadece hello bırak ---
+echo "Plymouth: Tüm Ubuntu temaları siliniyor..."
+# Bilinen tüm Ubuntu ve varsayılan Plymouth temalarını sil
+rm -rf /usr/share/plymouth/themes/ubuntu-logo 2>/dev/null || true
+rm -rf /usr/share/plymouth/themes/ubuntu-text 2>/dev/null || true
+rm -rf /usr/share/plymouth/themes/bgrt 2>/dev/null || true
+rm -rf /usr/share/plymouth/themes/spinner 2>/dev/null || true
+rm -rf /usr/share/plymouth/themes/glow 2>/dev/null || true
+rm -rf /usr/share/plymouth/themes/solar 2>/dev/null || true
+rm -rf /usr/share/plymouth/themes/fade-in 2>/dev/null || true
+rm -rf /usr/share/plymouth/themes/script 2>/dev/null || true
 
-# Ubuntu temasını temizle ve aynı isimle bizimkini koy
-mkdir -p "$UBUNTU_THEME_DIR"
-rm -f "$UBUNTU_THEME_DIR"/*
+echo "Plymouth: hello teması kuruluyor..."
+mkdir -p /usr/share/plymouth/themes/hello
 
-# Bizim hello temamızı oluştur
-mkdir -p "$HELLO_THEME_DIR"
-cat > "$HELLO_THEME_DIR/hello.plymouth" << 'PLYCONF'
+cat > /usr/share/plymouth/themes/hello/hello.plymouth << 'PLYCONF'
 [Plymouth Theme]
 Name=hello
 Description=hello Boot Screen
@@ -147,7 +151,7 @@ ImageDir=/usr/share/plymouth/themes/hello
 ScriptFile=/usr/share/plymouth/themes/hello/hello.script
 PLYCONF
 
-cat > "$HELLO_THEME_DIR/hello.script" << 'PLYANIM'
+cat > /usr/share/plymouth/themes/hello/hello.script << 'PLYANIM'
 screen_width = Window.GetWidth();
 screen_height = Window.GetHeight();
 
@@ -207,16 +211,23 @@ fun animate() {
 animate();
 PLYANIM
 
-# Ubuntu'nun dosyalarını bizimkilerle değiştir
-cp "$HELLO_THEME_DIR/hello.plymouth" "$UBUNTU_THEME_DIR/ubuntu-logo.plymouth"
-cp "$HELLO_THEME_DIR/hello.script" "$UBUNTU_THEME_DIR/ubuntu-logo.script"
-
-# Plymouth ayarlarını güncelle
+# Plymouth ayarlarını zorla hello yap
+plymouth-set-default-theme hello 2>/dev/null || true
 update-alternatives --install /usr/share/plymouth/themes/default.plymouth default.plymouth \
-    "$UBUNTU_THEME_DIR/ubuntu-logo.plymouth" 100 2>/dev/null || true
-update-alternatives --set default.plymouth "$UBUNTU_THEME_DIR/ubuntu-logo.plymouth" 2>/dev/null || true
-update-initramfs -u 2>/dev/null || true
-echo "Plymouth: Ubuntu boot dosyası değiştirildi."
+    /usr/share/plymouth/themes/hello/hello.plymouth 200 2>/dev/null || true
+update-alternatives --set default.plymouth /usr/share/plymouth/themes/hello/hello.plymouth 2>/dev/null || true
+
+# /etc/plymouth/plymouthd.conf oluştur (tema adını zorla)
+mkdir -p /etc/plymouth
+cat > /etc/plymouth/plymouthd.conf << 'PLYDCONF'
+[Daemon]
+Theme=hello
+ShowDelay=0
+PLYDCONF
+
+# Initramfs'ı yeniden oluştur (tüm kernel'ler için)
+update-initramfs -u -k all 2>/dev/null || update-initramfs -u 2>/dev/null || true
+echo "Plymouth: SADECE hello teması kaldı, initramfs güncellendi."
 
 # --- 5. GTK ayarları ---
 mkdir -p /etc/gtk-3.0
@@ -290,7 +301,7 @@ cat > /etc/default/grub.d/99-hello.cfg << 'GRUB'
 GRUB_DISTRIBUTOR="hello os"
 GRUB_TIMEOUT=5
 GRUB_TIMEOUT_STYLE=menu
-GRUB_CMDLINE_LINUX_DEFAULT="quiet splash"
+GRUB_CMDLINE_LINUX_DEFAULT="quiet splash plymouth.theme=hello"
 GRUB_GFXMODE=1920x1080
 GRUB_THEME="/boot/grub/themes/monterey/theme.txt"
 GRUB
@@ -488,7 +499,7 @@ update-grub 2>/dev/null || grub-mkconfig -o /boot/grub/grub.cfg 2>/dev/null || t
 echo ""
 echo "╔══════════════════════════════════════╗"
 echo "║   Özelleştirmeler tamamlandı!       ║"
-echo "║   Ubuntu boot dosyası değiştirildi   ║"
+echo "║   Plymouth: SADECE hello (Kesin)    ║"
 echo "╚══════════════════════════════════════╝"
 FULLHOOK
 
@@ -505,8 +516,8 @@ BINARY_ISO="$WORK/live-image-amd64.iso"
 [ ! -f "$BINARY_ISO" ] && BINARY_ISO="$WORK/chroot/binary.hybrid.iso"
 [ ! -f "$BINARY_ISO" ] && err "Live‑build ISO'su bulunamadı!"
 
-# ── Boot dosyalarını ekle ──
-info "Boot dosyaları (syslinux) indiriliyor ve ekleniyor..."
+# ── Boot dosyalarını ekle (syslinux indir) ──
+info "Boot dosyaları ekleniyor..."
 TMPISO="/tmp/hello-iso"
 rm -rf "$TMPISO"
 mkdir -p "$TMPISO"
@@ -542,12 +553,12 @@ MENU TITLE hello os 1.0
 LABEL live
   MENU LABEL ^Start hello os
   KERNEL /casper/${KERNEL}
-  APPEND initrd=/casper/${INITRD} boot=casper quiet splash --
+  APPEND initrd=/casper/${INITRD} boot=casper quiet splash plymouth.theme=hello --
 
 LABEL install
   MENU LABEL ^Install hello os
   KERNEL /casper/${KERNEL}
-  APPEND initrd=/casper/${INITRD} boot=casper only-ubiquity quiet splash --
+  APPEND initrd=/casper/${INITRD} boot=casper only-ubiquity quiet splash plymouth.theme=hello --
 EOF
 
 mkdir -p "$TMPISO/boot/grub"
@@ -559,11 +570,11 @@ fi
 cat > "$TMPISO/boot/grub/grub.cfg" << EOF
 set timeout=5
 menuentry "hello os - Live" {
-    linux /casper/${KERNEL} boot=casper quiet splash
+    linux /casper/${KERNEL} boot=casper quiet splash plymouth.theme=hello
     initrd /casper/${INITRD}
 }
 menuentry "hello os - Install" {
-    linux /casper/${KERNEL} boot=casper only-ubiquity quiet splash
+    linux /casper/${KERNEL} boot=casper only-ubiquity quiet splash plymouth.theme=hello
     initrd /casper/${INITRD}
 }
 EOF
