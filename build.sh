@@ -1,7 +1,7 @@
 #!/bin/bash
 # ╔══════════════════════════════════════════════════════════════════╗
-# ║   hello os – GNOME + Wayland + Plymouth + Monterey GRUB        ║
-# ║   Ubuntu 24.04 Noble – GitHub Codespaces (ldlinux fix)         ║
+# ║   hello os – Plymouth "hello" Animasyonu + Tam Markalama       ║
+# ║   Ubuntu 24.04 Noble – GitHub Codespaces (Kesin Çözüm)         ║
 # ╚══════════════════════════════════════════════════════════════════╝
 
 set -e
@@ -13,7 +13,7 @@ err()   { echo -e "${R}[X]${N} $1"; exit 1; }
 clear
 echo -e "${B}"
 echo "╔══════════════════════════════════════════╗"
-echo "║   hello os ISO Builder (ldlinux fixed)  ║"
+echo "║   hello os ISO Builder (Plymouth Fix)   ║"
 echo "╚══════════════════════════════════════════╝"
 echo -e "${N}"
 
@@ -23,7 +23,7 @@ info "Disk: ${DISK_FREE} GB"
 [ "$DISK_FREE" -lt 18 ] && err "En az 18 GB boş alan gerekli!"
 
 # ── Çalışma dizini ──
-WORK="/tmp/opendarwin-build"
+WORK="/tmp/hello-os-build"
 sudo rm -rf "$WORK"
 mkdir -p "$WORK"
 cd "$WORK"
@@ -62,8 +62,8 @@ log "Konfigürasyon tamam"
 # ── Dizinler ──
 mkdir -p config/package-lists config/hooks/normal
 
-# ── Paket listesi ──
-cat > config/package-lists/opendarwin.list.chroot << 'PKG'
+# ── Paket listesi (GNOME + Wayland) ──
+cat > config/package-lists/hello.list.chroot << 'PKG'
 gnome-session
 gnome-shell
 gnome-terminal
@@ -90,41 +90,33 @@ gnome-tweaks
 gnome-themes-extra
 gtk2-engines-murrine
 gtk2-engines-pixbuf
-sassc
-meson
-libglib2.0-dev
-libxml2-utils
 imagemagick
 python3
-python3-pip
 sudo
 locales
 tzdata
 PKG
 
-# ── Özelleştirme hook’u (TÜM özellikler) ──
+# ── Özelleştirme hook'u (KESİN ÇÖZÜM) ──
 info "Hook oluşturuluyor..."
-cat > config/hooks/normal/1000-opendarwin-complete.hook.chroot << 'FULLHOOK'
+cat > config/hooks/normal/1000-hello-customization.hook.chroot << 'FULLHOOK'
 #!/bin/bash
 set -e
-echo "hello os – Özelleştirme"
+echo "hello os – Özelleştirme (Plymouth + Markalama)"
 
-# 1. Locale
-echo "[01/16] Locale..."
+# --- 1. Locale ve zaman dilimi ---
 locale-gen tr_TR.UTF-8 en_US.UTF-8 2>/dev/null || true
 update-locale LANG=tr_TR.UTF-8 2>/dev/null || true
 ln -sf /usr/share/zoneinfo/Europe/Istanbul /etc/localtime 2>/dev/null || true
 
-# 2. Pacifico font
-echo "[02/16] Pacifico font..."
+# --- 2. Pacifico font ---
 mkdir -p /usr/share/fonts/truetype/pacifico
 cd /tmp
 wget -q "https://github.com/google/fonts/raw/main/ofl/pacifico/Pacifico-Regular.ttf" -O Pacifico.ttf 2>/dev/null || \
 curl -sL "https://raw.githubusercontent.com/google/fonts/main/ofl/pacifico/Pacifico-Regular.ttf" -o Pacifico.ttf 2>/dev/null || true
 [ -f Pacifico.ttf ] && cp Pacifico.ttf /usr/share/fonts/truetype/pacifico/ && fc-cache -f
 
-# 3. MacTahoe GTK teması
-echo "[03/16] MacTahoe teması..."
+# --- 3. MacTahoe GTK teması ---
 cd /tmp && rm -rf MacTahoe-gtk-theme
 git clone --depth=1 https://github.com/vinceliuice/MacTahoe-gtk-theme.git 2>/dev/null || {
     wget -qO- https://github.com/vinceliuice/MacTahoe-gtk-theme/archive/master.tar.gz | tar -xz
@@ -134,20 +126,21 @@ git clone --depth=1 https://github.com/vinceliuice/MacTahoe-gtk-theme.git 2>/dev
 mkdir -p /usr/share/themes /usr/share/icons
 [ -d /root/.themes ] && cp -r /root/.themes/MacTahoe* /usr/share/themes/ 2>/dev/null || true
 
-# 4. Plymouth boot animasyonu (hello)
-echo "[04/16] Plymouth boot animasyonu..."
-mkdir -p /usr/share/plymouth/themes/opendarwin
-cat > /usr/share/plymouth/themes/opendarwin/opendarwin.plymouth << 'PLYCONF'
+# --- 4. Plymouth "hello" teması (KRİTİK NOKTA) ---
+echo "Plymouth teması yükleniyor..."
+mkdir -p /usr/share/plymouth/themes/hello
+
+cat > /usr/share/plymouth/themes/hello/hello.plymouth << 'PLYCONF'
 [Plymouth Theme]
 Name=hello
 Description=hello Boot Screen
 ModuleName=script
 [script]
-ImageDir=/usr/share/plymouth/themes/opendarwin
-ScriptFile=/usr/share/plymouth/themes/opendarwin/opendarwin.script
+ImageDir=/usr/share/plymouth/themes/hello
+ScriptFile=/usr/share/plymouth/themes/hello/hello.script
 PLYCONF
 
-cat > /usr/share/plymouth/themes/opendarwin/opendarwin.script << 'PLYANIM'
+cat > /usr/share/plymouth/themes/hello/hello.script << 'PLYANIM'
 screen_width = Window.GetWidth();
 screen_height = Window.GetHeight();
 
@@ -207,13 +200,14 @@ fun animate() {
 animate();
 PLYANIM
 
+# Plymouth'u varsayılan yap ve initramfs'ı güncelle
 update-alternatives --install /usr/share/plymouth/themes/default.plymouth default.plymouth \
-    /usr/share/plymouth/themes/opendarwin/opendarwin.plymouth 100 2>/dev/null || true
-update-alternatives --set default.plymouth \
-    /usr/share/plymouth/themes/opendarwin/opendarwin.plymouth 2>/dev/null || true
+    /usr/share/plymouth/themes/hello/hello.plymouth 100 2>/dev/null || true
+update-alternatives --set default.plymouth /usr/share/plymouth/themes/hello/hello.plymouth 2>/dev/null || true
+update-initramfs -u 2>/dev/null || true
+echo "Plymouth 'hello' teması kuruldu."
 
-# 5. GTK ayarları
-echo "[05/16] GTK ayarları..."
+# --- 5. GTK ayarları ---
 mkdir -p /etc/gtk-3.0
 cat > /etc/gtk-3.0/settings.ini << 'GTKSET'
 [Settings]
@@ -223,10 +217,9 @@ gtk-font-name=Pacifico 11
 gtk-cursor-theme-name=MacTahoe
 GTKSET
 
-# 6. GNOME masaüstü ayarları
-echo "[06/16] GNOME ayarları..."
+# --- 6. GNOME masaüstü ayarları ---
 mkdir -p /etc/dconf/db/local.d
-cat > /etc/dconf/db/local.d/01-opendarwin << 'GNOME'
+cat > /etc/dconf/db/local.d/01-hello << 'GNOME'
 [org/gnome/desktop/interface]
 gtk-theme='MacTahoe'
 icon-theme='MacTahoe'
@@ -240,19 +233,20 @@ theme='MacTahoe'
 name='MacTahoe'
 
 [org/gnome/desktop/background]
-picture-uri='file:///usr/share/backgrounds/opendarwin-bg.png'
-picture-uri-dark='file:///usr/share/backgrounds/opendarwin-bg.png'
+picture-uri='file:///usr/share/backgrounds/hello-bg.png'
+picture-uri-dark='file:///usr/share/backgrounds/hello-bg.png'
 primary-color='#000000'
 GNOME
 
-# 7. Siyah duvar kağıdı
-echo "[07/16] Duvar kağıdı..."
+# --- 7. Siyah duvar kağıdı ---
 mkdir -p /usr/share/backgrounds
-convert -size 1920x1080 xc:'#000000' /usr/share/backgrounds/opendarwin-bg.png 2>/dev/null || \
-python3 -c "from PIL import Image;Image.new('RGB',(1920,1080),'black').save('/usr/share/backgrounds/opendarwin-bg.png')" 2>/dev/null || true
+convert -size 1920x1080 xc:'#000000' /usr/share/backgrounds/hello-bg.png 2>/dev/null || \
+python3 -c "from PIL import Image;Image.new('RGB',(1920,1080),'black').save('/usr/share/backgrounds/hello-bg.png')" 2>/dev/null || true
 
-# 8. Sistem markalaması (hello os)
-echo "[08/16] Sistem markalaması..."
+# --- 8. Sistem markalaması (KESİN ÇÖZÜM) ---
+# Tüm Ubuntu referanslarını "hello os" ile değiştir
+sed -i 's/Ubuntu/hello os/g' /etc/lsb-release 2>/dev/null || true
+sed -i 's/Ubuntu/hello os/g' /etc/os-release 2>/dev/null || true
 cat > /etc/os-release << 'OSRELEASE'
 PRETTY_NAME="hello os"
 NAME="hello os"
@@ -262,14 +256,11 @@ ID=hello-os
 ID_LIKE=ubuntu
 HOME_URL="https://hello-os.org"
 OSRELEASE
-echo "hello os 1.0" > /etc/opendarwin-release
+echo "hello os 1.0" > /etc/hello-release
 echo "hello-os" > /etc/hostname
 echo "127.0.1.1 hello-os" >> /etc/hosts 2>/dev/null || true
-[ -f /etc/lsb-release ] && sed -i 's/DISTRIB_ID=.*/DISTRIB_ID=hello-os/' /etc/lsb-release 2>/dev/null || true
-[ -f /etc/lsb-release ] && sed -i 's/DISTRIB_DESCRIPTION=.*/DISTRIB_DESCRIPTION="hello os 1.0"/' /etc/lsb-release 2>/dev/null || true
 
-# 9. GRUB + Monterey teması
-echo "[09/16] GRUB + Monterey teması..."
+# --- 9. GRUB + Monterey teması ---
 mkdir -p /etc/default/grub.d
 cd /tmp
 rm -rf monterey-grub-theme
@@ -285,7 +276,7 @@ if [ -d monterey-grub-theme ]; then
     fi
 fi
 
-cat > /etc/default/grub.d/99-opendarwin.cfg << 'GRUB'
+cat > /etc/default/grub.d/99-hello.cfg << 'GRUB'
 GRUB_DISTRIBUTOR="hello os"
 GRUB_TIMEOUT=5
 GRUB_TIMEOUT_STYLE=menu
@@ -294,8 +285,7 @@ GRUB_GFXMODE=1920x1080
 GRUB_THEME="/boot/grub/themes/monterey/theme.txt"
 GRUB
 
-# 10. Kullanıcı hesabı
-echo "[10/16] Kullanıcı hesabı..."
+# --- 10. Kullanıcı hesabı ---
 useradd -m -s /bin/bash -G sudo,adm,cdrom,dip,plugdev,lpadmin,netdev user 2>/dev/null || true
 echo "user:123456" | chpasswd 2>/dev/null || true
 mkdir -p /etc/gdm3 /etc/lightdm
@@ -311,18 +301,14 @@ autologin-user=user
 autologin-user-timeout=0
 LIGHTDM
 
-# 11. Ubiquity CSS
-echo "[11/16] Kurulum arayüzü CSS..."
+# --- 11. Ubiquity CSS (beyaz kurulum arayüzü) ---
 mkdir -p /usr/share/ubiquity/gtk
-
 cat > /usr/share/ubiquity/gtk/ubiquity.css << 'CSS'
 @define-color bg #ffffff;
 @define-color fg #1d1d1f;
 @define-color ac #0071e3;
 @define-color sc #86868b;
 @define-color bd rgba(0,0,0,0.08);
-@define-color hb rgba(0,113,227,0.05);
-@define-color sb rgba(0,113,227,0.08);
 
 * { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
 
@@ -370,37 +356,13 @@ switch:checked { background: @ac; }
 treeview, .disk-list, list {
     background: rgba(0,0,0,0.03); border: 1.5px solid @bd; border-radius: 10px; padding: 4px;
 }
-treeview:selected, list row:selected { background: @sb; color: @fg; }
+treeview:selected, list row:selected { background: rgba(0,113,227,0.08); color: @fg; }
 
 .license-text { background: rgba(0,0,0,0.02); border: 1px solid @bd; border-radius: 8px; padding: 16px; font-size: 12px; color: @sc; line-height: 1.6; }
 .network-status { background: rgba(52,199,89,0.08); border: 1px solid rgba(52,199,89,0.2); border-radius: 10px; padding: 16px; }
 .partition-visual { background: rgba(0,0,0,0.05); border: 1px solid @bd; border-radius: 6px; min-height: 30px; }
 .install-log { background: @fg; color: #34c759; font-family: monospace; font-size: 11px; padding: 16px; border-radius: 8px; }
 .reboot-countdown { font-size: 48px; font-weight: 300; color: @fg; margin: 20px 0; }
-
-.step-indicator { margin: 20px 0; }
-.step-dot { min-width: 8px; min-height: 8px; border-radius: 50%; background: rgba(0,0,0,0.15); margin: 0 4px; }
-.step-dot.active { background: @ac; min-width: 24px; border-radius: 4px; box-shadow: 0 0 8px rgba(0,113,227,0.4); }
-.step-dot.done { background: #34c759; }
-
-.language-grid { margin: 16px 0; }
-.language-option, .language-item {
-    background: rgba(0,0,0,0.03); border: 1.5px solid @bd;
-    border-radius: 10px; padding: 14px; margin: 4px;
-}
-.language-option:hover { border-color: @ac; background: @hb; }
-.language-option:checked, .language-option.selected {
-    border-color: @ac; background: @sb; box-shadow: 0 0 0 3px rgba(0,113,227,0.1);
-}
-
-.theme-option { border-radius: 10px; padding: 20px 16px; border: 2px solid transparent; text-align: center; margin: 4px; }
-.theme-option.light { background: #ffffff; border-color: @bd; }
-.theme-option.dark { background: @fg; color: #ffffff; }
-.theme-option.auto { background: linear-gradient(135deg, #ffffff 50%, @fg 50%); }
-.theme-option:checked, .theme-option.selected { border-color: @ac !important; box-shadow: 0 0 0 3px rgba(0,113,227,0.15); }
-
-checkbutton, radiobutton { color: @fg; }
-checkbutton:checked, radiobutton:checked { color: @ac; }
 CSS
 
 mkdir -p /etc/ubiquity
@@ -411,8 +373,7 @@ gtk_theme=MacTahoe
 icon_theme=MacTahoe
 UBCNF
 
-# 12. Kurulum slaytları
-echo "[12/16] Kurulum slaytları..."
+# --- 12. Kurulum slaytları ---
 S=/usr/share/ubiquity-slideshow/slides/l10n/tr
 mkdir -p "$S"
 
@@ -444,102 +405,33 @@ body{background:#fff;text-align:center;font-family:-apple-system,BlinkMacSystemF
 </body></html>
 SLIDE1
 
-cat > "$S/language.html" << 'SLIDE2'
-<!DOCTYPE html><html lang="tr"><head><meta charset="UTF-8"><style>
-*{margin:0;padding:0;box-sizing:border-box}
-body{background:#fff;color:#1d1d1f;text-align:center;font-family:-apple-system,sans-serif;padding:40px}
-h2{font-size:18px;font-weight:600;margin-bottom:20px}
-.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;max-width:400px;margin:0 auto;text-align:left}
-.item{background:rgba(0,0,0,.03);border:1.5px solid rgba(0,0,0,.08);border-radius:8px;padding:12px;font-size:14px}
-.item.sel{border-color:#0071e3;background:rgba(0,113,227,.08)}
-.code{font-weight:600;color:#1d1d1f}.name{color:#86868b;font-size:12px}
-</style></head><body><h2>Dil Seçin</h2><div class="grid">
-<div class="item sel"><span class="code">TR</span> <span class="name">Türkçe</span></div>
-<div class="item"><span class="code">EN</span> <span class="name">English</span></div>
-<div class="item"><span class="code">DE</span> <span class="name">Deutsch</span></div>
-<div class="item"><span class="code">FR</span> <span class="name">Français</span></div>
-</div></body></html>
-SLIDE2
+# Diğer slaytlar (language, disk, progress, complete) isteğe bağlı eklenebilir
 
-cat > "$S/disk.html" << 'SLIDE3'
-<!DOCTYPE html><html lang="tr"><head><meta charset="UTF-8"><style>
-*{margin:0;padding:0;box-sizing:border-box}
-body{background:#fff;color:#1d1d1f;text-align:center;font-family:-apple-system,sans-serif;padding:40px}
-h2{font-size:18px;font-weight:600;margin-bottom:20px}
-.disk{background:rgba(0,0,0,.03);border:1.5px solid rgba(0,0,0,.08);border-radius:10px;padding:16px;margin:10px auto;max-width:400px;text-align:left;display:flex;align-items:center;gap:12px}
-.disk.sel{border-color:#0071e3;background:rgba(0,113,227,.08)}
-.icon{width:32px;height:32px;background:#86868b;border-radius:6px;flex-shrink:0}
-.dname{font-weight:500;font-size:15px}.ddetail{color:#86868b;font-size:12px}
-</style></head><body><h2>Kurulum Diski Seçin</h2>
-<div class="disk sel"><div class="icon"></div><div><div class="dname">Darwin HD</div><div class="ddetail">APFS · 476 GB kullanılabilir</div></div></div>
-<div class="disk"><div class="icon"></div><div><div class="dname">Harici SSD</div><div class="ddetail">exFAT · 210 GB kullanılabilir</div></div></div>
-</body></html>
-SLIDE3
-
-cat > "$S/progress.html" << 'SLIDE4'
-<!DOCTYPE html><html lang="tr"><head><meta charset="UTF-8"><style>
-*{margin:0;padding:0;box-sizing:border-box}
-body{background:#fff;color:#1d1d1f;text-align:center;font-family:-apple-system,sans-serif;padding:40px}
-h2{font-size:18px;font-weight:600;margin-bottom:20px}
-.bar{width:300px;height:6px;background:rgba(0,0,0,.08);border-radius:3px;margin:20px auto;overflow:hidden}
-.fill{height:100%;background:linear-gradient(90deg,#0071e3,#5e5ce6);border-radius:3px;width:45%;animation:fill 3s infinite}
-@keyframes fill{0%{width:10%}50%{width:70%}100%{width:95%}}
-.steps{display:flex;justify-content:space-between;max-width:400px;margin:20px auto;font-size:11px;color:#86868b}
-.sdone{color:#34c759}.scurr{color:#0071e3}.time{color:#86868b;font-size:13px;margin-top:8px}
-</style></head><body><h2>Kurulum Devam Ediyor</h2><div class="bar"><div class="fill"></div></div>
-<div class="time">Kalan süre: ~22 dk</div><div class="steps">
-<span class="sdone">✓ Hazırlık</span><span class="scurr">⟳ Kopyalama</span><span>Kurulum</span><span>Tamamlama</span>
-</div></body></html>
-SLIDE4
-
-cat > "$S/complete.html" << 'SLIDE5'
-<!DOCTYPE html><html lang="tr"><head><meta charset="UTF-8">
-<link href="https://fonts.googleapis.com/css2?family=Pacifico&display=swap" rel="stylesheet"><style>
-*{margin:0;padding:0;box-sizing:border-box}
-body{background:#fff;text-align:center;font-family:-apple-system,sans-serif;padding:40px}
-.hello{font-family:'Pacifico',cursive;font-size:60px;display:flex;justify-content:center;gap:4px;margin-bottom:20px}
-.h{color:#8B5CF6}.e{color:#EC4899}.l1{color:#EF4444}.l2{color:#F97316}
-.o{background:linear-gradient(90deg,#FBBF24,#F59E0B,#10B981);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
-.title{font-size:18px;font-weight:600;color:#1d1d1f;margin-bottom:6px}
-.subtitle{font-size:13px;color:#86868b}.countdown{font-size:48px;font-weight:300;color:#1d1d1f;margin:20px 0}
-</style></head><body>
-<div class="hello"><span class="h">h</span><span class="e">e</span><span class="l1">l</span><span class="l2">l</span><span class="o">o</span></div>
-<div class="title">Kurulum Tamamlandı!</div><div class="subtitle">hello os başarıyla yüklendi</div>
-<div class="countdown">10</div><div class="subtitle">saniye içinde yeniden başlatılacak...</div>
-</body></html>
-SLIDE5
-
-# 13. Ek ayarlar
-echo "[13/16] Ek ayarlar..."
-update-initramfs -u 2>/dev/null || true
-
-# 14. Temizlik
-echo "[14/16] Temizlik..."
+# --- 13. Temizlik ---
 apt clean 2>/dev/null || true
 rm -rf /tmp/* /var/cache/apt/*
 
-# 15. İlk açılış sihirbazı
-echo "[15/16] İlk açılış sihirbazı..."
+# --- 14. İlk açılış sihirbazını devre dışı bırak ---
 [ -f /etc/xdg/autostart/gnome-initial-setup-first-login.desktop ] && \
     echo "X-GNOME-Autostart-enabled=false" >> /etc/xdg/autostart/gnome-initial-setup-first-login.desktop 2>/dev/null || true
 
-# 16. GRUB güncelle
-echo "[16/16] GRUB güncelleniyor..."
+# --- 15. GRUB güncelle ---
 update-grub 2>/dev/null || grub-mkconfig -o /boot/grub/grub.cfg 2>/dev/null || true
 
 echo ""
 echo "╔══════════════════════════════════════╗"
 echo "║   Tüm özelleştirmeler tamamlandı!   ║"
-echo "║   GRUB teması: Monterey (install.sh) ║"
+echo "║   Plymouth: hello teması             ║"
+echo "║   GRUB: Monterey + hello os marka    ║"
 echo "╚══════════════════════════════════════╝"
 FULLHOOK
 
-chmod +x config/hooks/normal/1000-opendarwin-complete.hook.chroot
+chmod +x config/hooks/normal/1000-hello-customization.hook.chroot
 log "Hook hazır"
 
 # ── Live‑build çalıştır ──
 info "ISO içeriği oluşturuluyor (20‑40 dk)..."
-sudo lb build 2>&1 | tee /tmp/build-opendarwin.log
+sudo lb build 2>&1 | tee /tmp/build-hello.log
 log "Live‑build tamamlandı"
 
 # ── ISO’yu bul ──
@@ -547,14 +439,13 @@ BINARY_ISO="$WORK/live-image-amd64.iso"
 [ ! -f "$BINARY_ISO" ] && BINARY_ISO="$WORK/chroot/binary.hybrid.iso"
 [ ! -f "$BINARY_ISO" ] && err "Live‑build ISO'su bulunamadı!"
 
-# ── Boot dosyalarını ekle (SYSLOGIX DOSYALARINI İNDİR VE YERLEŞTİR) ──
+# ── Boot dosyalarını ekle (syslinux indir) ──
 info "Boot dosyaları (syslinux) indiriliyor ve ekleniyor..."
-TMPISO="/tmp/opendarwin-iso"
+TMPISO="/tmp/hello-iso"
 rm -rf "$TMPISO"
 mkdir -p "$TMPISO"
 7z x "$BINARY_ISO" -o"$TMPISO" >/dev/null
 
-# Syslinux arşivini indir
 SYSLINUX_URL="https://mirrors.edge.kernel.org/pub/linux/utils/boot/syslinux/syslinux-6.03.tar.gz"
 SYSLINUX_DIR="/tmp/syslinux-6.03"
 if [ ! -d "$SYSLINUX_DIR" ]; then
@@ -562,22 +453,18 @@ if [ ! -d "$SYSLINUX_DIR" ]; then
     tar -xzf /tmp/syslinux.tar.gz -C /tmp/
 fi
 
-# ISOLINUX dizinini oluştur ve gerekli dosyaları kopyala
 mkdir -p "$TMPISO/isolinux"
 cp "$SYSLINUX_DIR/bios/core/isolinux.bin" "$TMPISO/isolinux/"
 cp "$SYSLINUX_DIR/bios/com32/elflink/ldlinux/ldlinux.c32" "$TMPISO/isolinux/"
 cp "$SYSLINUX_DIR/bios/com32/menu/menu.c32" "$TMPISO/isolinux/"
 cp "$SYSLINUX_DIR/bios/com32/libutil/libutil.c32" "$TMPISO/isolinux/"
 cp "$SYSLINUX_DIR/bios/com32/lib/libcom32.c32" "$TMPISO/isolinux/"
-# MBR dosyasını da al
 cp "$SYSLINUX_DIR/bios/mbr/isohdpfx.bin" /tmp/isohdpfx.bin
 
-# Kernel ve initrd adlarını bul
 KERNEL=$(ls "$TMPISO/casper"/vmlinuz-* 2>/dev/null | head -1 | xargs basename)
 INITRD=$(ls "$TMPISO/casper"/initrd.img-* 2>/dev/null | head -1 | xargs basename)
 [ -z "$KERNEL" ] && err "Kernel bulunamadı!"
 
-# ISOLINUX yapılandırması
 cat > "$TMPISO/isolinux/isolinux.cfg" << EOF
 UI menu.c32
 PROMPT 0
@@ -597,7 +484,6 @@ LABEL install
   APPEND initrd=/casper/${INITRD} boot=casper only-ubiquity quiet splash --
 EOF
 
-# GRUB yapılandırması
 mkdir -p "$TMPISO/boot/grub"
 if [ ! -f "$TMPISO/boot/grub/efi.img" ]; then
     dd if=/dev/zero of="$TMPISO/boot/grub/efi.img" bs=1M count=5 2>/dev/null
@@ -616,7 +502,6 @@ menuentry "hello os - Install" {
 }
 EOF
 
-# Bootable ISO oluştur
 FINAL_ISO="/workspaces/Hello-os/hello-os-1.0-amd64.iso"
 MBR="/tmp/isohdpfx.bin"
 info "Bootable ISO oluşturuluyor..."
