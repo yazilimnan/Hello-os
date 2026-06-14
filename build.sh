@@ -1,6 +1,6 @@
 #!/bin/bash
 # ╔══════════════════════════════════════════════════════════════════╗
-# ║   hello os – Ubuntu Plymouth SORUNU KESİN ÇÖZÜM               ║
+# ║   hello os 1.0 – Tam Kurulum Arayüzü + Plymouth + Monterey     ║
 # ║   Ubuntu 24.04 Noble – GitHub Codespaces                       ║
 # ╚══════════════════════════════════════════════════════════════════╝
 
@@ -13,7 +13,7 @@ err()   { echo -e "${R}[X]${N} $1"; exit 1; }
 clear
 echo -e "${B}"
 echo "╔══════════════════════════════════════════╗"
-echo "║   hello os ISO Builder (Plymouth Fix)   ║"
+echo "║   hello os ISO Builder (Eksiksiz)       ║"
 echo "╚══════════════════════════════════════════╝"
 echo -e "${N}"
 
@@ -62,7 +62,7 @@ log "Konfigürasyon tamam"
 # ── Dizinler ──
 mkdir -p config/package-lists config/hooks/normal
 
-# ── Paket listesi (GNOME + Wayland) ──
+# ── Paket listesi (GNOME + Wayland + tüm kurulum araçları) ──
 cat > config/package-lists/hello.list.chroot << 'PKG'
 gnome-session
 gnome-shell
@@ -92,17 +92,18 @@ gtk2-engines-murrine
 gtk2-engines-pixbuf
 imagemagick
 python3
+python3-pip
 sudo
 locales
 tzdata
 PKG
 
-# ── Özelleştirme hook'u (UBUNTU PLYMOUTH SİLİNİR) ──
+# ── Özelleştirme hook'u (TÜM ÖZELLİKLER) ──
 info "Hook oluşturuluyor..."
 cat > config/hooks/normal/1000-hello-customization.hook.chroot << 'FULLHOOK'
 #!/bin/bash
 set -e
-echo "hello os – Özelleştirme (Ubuntu Plymouth Siliniyor)"
+echo "hello os – Özelleştirme (Tam Kurulum Arayüzü)"
 
 # --- 1. Locale ve zaman dilimi ---
 locale-gen tr_TR.UTF-8 en_US.UTF-8 2>/dev/null || true
@@ -126,7 +127,7 @@ git clone --depth=1 https://github.com/vinceliuice/MacTahoe-gtk-theme.git 2>/dev
 mkdir -p /usr/share/themes /usr/share/icons
 [ -d /root/.themes ] && cp -r /root/.themes/MacTahoe* /usr/share/themes/ 2>/dev/null || true
 
-# --- 4. Plymouth "hello" teması (UBUNTU LOGOSU SİLİNİR) ---
+# --- 4. Plymouth "hello" teması (Ubuntu temalarını sil) ---
 echo "Plymouth: Ubuntu teması siliniyor..."
 rm -rf /usr/share/plymouth/themes/ubuntu-logo 2>/dev/null || true
 rm -rf /usr/share/plymouth/themes/ubuntu-text 2>/dev/null || true
@@ -207,10 +208,8 @@ PLYANIM
 update-alternatives --install /usr/share/plymouth/themes/default.plymouth default.plymouth \
     /usr/share/plymouth/themes/hello/hello.plymouth 100 2>/dev/null || true
 update-alternatives --set default.plymouth /usr/share/plymouth/themes/hello/hello.plymouth 2>/dev/null || true
-
-echo "update-initramfs çalıştırılıyor (hata ayıklamalı)..."
-update-initramfs -u -v 2>&1 | grep -iE "plymouth|hello|error|warning" || true
-echo "Plymouth güncellemesi tamamlandı."
+update-initramfs -u 2>/dev/null || true
+echo "Plymouth 'hello' teması kuruldu."
 
 # --- 5. GTK ayarları ---
 mkdir -p /etc/gtk-3.0
@@ -248,7 +247,7 @@ mkdir -p /usr/share/backgrounds
 convert -size 1920x1080 xc:'#000000' /usr/share/backgrounds/hello-bg.png 2>/dev/null || \
 python3 -c "from PIL import Image;Image.new('RGB',(1920,1080),'black').save('/usr/share/backgrounds/hello-bg.png')" 2>/dev/null || true
 
-# --- 8. Sistem markalaması ---
+# --- 8. Sistem markalaması (hello os) ---
 sed -i 's/Ubuntu/hello os/g' /etc/lsb-release 2>/dev/null || true
 sed -i 's/Ubuntu/hello os/g' /etc/os-release 2>/dev/null || true
 cat > /etc/os-release << 'OSRELEASE'
@@ -264,7 +263,7 @@ echo "hello os 1.0" > /etc/hello-release
 echo "hello-os" > /etc/hostname
 echo "127.0.1.1 hello-os" >> /etc/hosts 2>/dev/null || true
 
-# --- 9. GRUB + Monterey teması ---
+# --- 9. GRUB + Monterey teması (install.sh ile) ---
 mkdir -p /etc/default/grub.d
 cd /tmp
 rm -rf monterey-grub-theme
@@ -305,7 +304,7 @@ autologin-user=user
 autologin-user-timeout=0
 LIGHTDM
 
-# --- 11. Ubiquity CSS ---
+# --- 11. Ubiquity CSS (beyaz kurulum arayüzü) ---
 mkdir -p /usr/share/ubiquity/gtk
 cat > /usr/share/ubiquity/gtk/ubiquity.css << 'CSS'
 @define-color bg #ffffff;
@@ -371,9 +370,10 @@ gtk_theme=MacTahoe
 icon_theme=MacTahoe
 UBCNF
 
-# --- 12. Kurulum slaytı (sadece welcome) ---
+# --- 12. Kurulum slaytları (TÜMÜ) ---
 S=/usr/share/ubiquity-slideshow/slides/l10n/tr
 mkdir -p "$S"
+
 cat > "$S/welcome.html" << 'SLIDE1'
 <!DOCTYPE html>
 <html lang="tr">
@@ -391,11 +391,81 @@ body{background:#fff;text-align:center;font-family:-apple-system,BlinkMacSystemF
 @keyframes oShift{0%,100%{filter:hue-rotate(0deg)}50%{filter:hue-rotate(15deg)}}
 .title{font-size:18px;font-weight:600;color:#1d1d1f;margin-bottom:6px}
 .subtitle{font-size:13px;color:#86868b}
+.step-indicator{display:flex;justify-content:center;gap:8px;margin-bottom:30px}
+.step-dot{width:8px;height:8px;border-radius:50%;background:rgba(0,0,0,.15)}
+.step-dot.active{background:#0071e3;width:24px;border-radius:4px;box-shadow:0 0 8px rgba(0,113,227,.4)}
+.step-dot.done{background:#34c759}
 </style></head><body>
+<div class="step-indicator"><div class="step-dot done"></div><div class="step-dot active"></div><div class="step-dot"></div><div class="step-dot"></div><div class="step-dot"></div></div>
 <div class="hello-text"><span class="h">h</span><span class="e">e</span><span class="l1">l</span><span class="l2">l</span><span class="o">o</span></div>
 <div class="title">hello os'a Hoş Geldiniz</div><div class="subtitle">Sürüm 1.0</div>
 </body></html>
 SLIDE1
+
+cat > "$S/language.html" << 'SLIDE2'
+<!DOCTYPE html><html lang="tr"><head><meta charset="UTF-8"><style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#fff;color:#1d1d1f;text-align:center;font-family:-apple-system,sans-serif;padding:40px}
+h2{font-size:18px;font-weight:600;margin-bottom:20px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;max-width:400px;margin:0 auto;text-align:left}
+.item{background:rgba(0,0,0,.03);border:1.5px solid rgba(0,0,0,.08);border-radius:8px;padding:12px;font-size:14px}
+.item.sel{border-color:#0071e3;background:rgba(0,113,227,.08)}
+.code{font-weight:600;color:#1d1d1f}.name{color:#86868b;font-size:12px}
+</style></head><body><h2>Dil Seçin</h2><div class="grid">
+<div class="item sel"><span class="code">TR</span> <span class="name">Türkçe</span></div>
+<div class="item"><span class="code">EN</span> <span class="name">English</span></div>
+<div class="item"><span class="code">DE</span> <span class="name">Deutsch</span></div>
+<div class="item"><span class="code">FR</span> <span class="name">Français</span></div>
+</div></body></html>
+SLIDE2
+
+cat > "$S/disk.html" << 'SLIDE3'
+<!DOCTYPE html><html lang="tr"><head><meta charset="UTF-8"><style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#fff;color:#1d1d1f;text-align:center;font-family:-apple-system,sans-serif;padding:40px}
+h2{font-size:18px;font-weight:600;margin-bottom:20px}
+.disk{background:rgba(0,0,0,.03);border:1.5px solid rgba(0,0,0,.08);border-radius:10px;padding:16px;margin:10px auto;max-width:400px;text-align:left;display:flex;align-items:center;gap:12px}
+.disk.sel{border-color:#0071e3;background:rgba(0,113,227,.08)}
+.icon{width:32px;height:32px;background:#86868b;border-radius:6px;flex-shrink:0}
+.dname{font-weight:500;font-size:15px}.ddetail{color:#86868b;font-size:12px}
+</style></head><body><h2>Kurulum Diski Seçin</h2>
+<div class="disk sel"><div class="icon"></div><div><div class="dname">Darwin HD</div><div class="ddetail">APFS · 476 GB kullanılabilir</div></div></div>
+<div class="disk"><div class="icon"></div><div><div class="dname">Harici SSD</div><div class="ddetail">exFAT · 210 GB kullanılabilir</div></div></div>
+</body></html>
+SLIDE3
+
+cat > "$S/progress.html" << 'SLIDE4'
+<!DOCTYPE html><html lang="tr"><head><meta charset="UTF-8"><style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#fff;color:#1d1d1f;text-align:center;font-family:-apple-system,sans-serif;padding:40px}
+h2{font-size:18px;font-weight:600;margin-bottom:20px}
+.bar{width:300px;height:6px;background:rgba(0,0,0,.08);border-radius:3px;margin:20px auto;overflow:hidden}
+.fill{height:100%;background:linear-gradient(90deg,#0071e3,#5e5ce6);border-radius:3px;width:45%;animation:fill 3s infinite}
+@keyframes fill{0%{width:10%}50%{width:70%}100%{width:95%}}
+.steps{display:flex;justify-content:space-between;max-width:400px;margin:20px auto;font-size:11px;color:#86868b}
+.sdone{color:#34c759}.scurr{color:#0071e3}.time{color:#86868b;font-size:13px;margin-top:8px}
+</style></head><body><h2>Kurulum Devam Ediyor</h2><div class="bar"><div class="fill"></div></div>
+<div class="time">Kalan süre: ~22 dk</div><div class="steps">
+<span class="sdone">✓ Hazırlık</span><span class="scurr">⟳ Kopyalama</span><span>Kurulum</span><span>Tamamlama</span>
+</div></body></html>
+SLIDE4
+
+cat > "$S/complete.html" << 'SLIDE5'
+<!DOCTYPE html><html lang="tr"><head><meta charset="UTF-8">
+<link href="https://fonts.googleapis.com/css2?family=Pacifico&display=swap" rel="stylesheet"><style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#fff;text-align:center;font-family:-apple-system,sans-serif;padding:40px}
+.hello{font-family:'Pacifico',cursive;font-size:60px;display:flex;justify-content:center;gap:4px;margin-bottom:20px}
+.h{color:#8B5CF6}.e{color:#EC4899}.l1{color:#EF4444}.l2{color:#F97316}
+.o{background:linear-gradient(90deg,#FBBF24,#F59E0B,#10B981);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.title{font-size:18px;font-weight:600;color:#1d1d1f;margin-bottom:6px}
+.subtitle{font-size:13px;color:#86868b}.countdown{font-size:48px;font-weight:300;color:#1d1d1f;margin:20px 0}
+</style></head><body>
+<div class="hello"><span class="h">h</span><span class="e">e</span><span class="l1">l</span><span class="l2">l</span><span class="o">o</span></div>
+<div class="title">Kurulum Tamamlandı!</div><div class="subtitle">hello os başarıyla yüklendi</div>
+<div class="countdown">10</div><div class="subtitle">saniye içinde yeniden başlatılacak...</div>
+</body></html>
+SLIDE5
 
 # --- 13. Temizlik ---
 apt clean 2>/dev/null || true
@@ -411,7 +481,6 @@ update-grub 2>/dev/null || grub-mkconfig -o /boot/grub/grub.cfg 2>/dev/null || t
 echo ""
 echo "╔══════════════════════════════════════╗"
 echo "║   Tüm özelleştirmeler tamamlandı!   ║"
-echo "║   Plymouth: sadece hello (Ubuntu yok)║"
 echo "╚══════════════════════════════════════╝"
 FULLHOOK
 
