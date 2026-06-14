@@ -1,7 +1,7 @@
 #!/bin/bash
 # ╔══════════════════════════════════════════════════════════════════╗
-# ║   hello os – Plymouth "hello" Animasyonu + Tam Markalama       ║
-# ║   Ubuntu 24.04 Noble – GitHub Codespaces (Kesin Çözüm)         ║
+# ║   hello os – Ubuntu Plymouth SORUNU KESİN ÇÖZÜM               ║
+# ║   Ubuntu 24.04 Noble – GitHub Codespaces                       ║
 # ╚══════════════════════════════════════════════════════════════════╝
 
 set -e
@@ -97,12 +97,12 @@ locales
 tzdata
 PKG
 
-# ── Özelleştirme hook'u (KESİN ÇÖZÜM) ──
+# ── Özelleştirme hook'u (UBUNTU PLYMOUTH SİLİNİR) ──
 info "Hook oluşturuluyor..."
 cat > config/hooks/normal/1000-hello-customization.hook.chroot << 'FULLHOOK'
 #!/bin/bash
 set -e
-echo "hello os – Özelleştirme (Plymouth + Markalama)"
+echo "hello os – Özelleştirme (Ubuntu Plymouth Siliniyor)"
 
 # --- 1. Locale ve zaman dilimi ---
 locale-gen tr_TR.UTF-8 en_US.UTF-8 2>/dev/null || true
@@ -126,8 +126,12 @@ git clone --depth=1 https://github.com/vinceliuice/MacTahoe-gtk-theme.git 2>/dev
 mkdir -p /usr/share/themes /usr/share/icons
 [ -d /root/.themes ] && cp -r /root/.themes/MacTahoe* /usr/share/themes/ 2>/dev/null || true
 
-# --- 4. Plymouth "hello" teması (KRİTİK NOKTA) ---
-echo "Plymouth teması yükleniyor..."
+# --- 4. Plymouth "hello" teması (UBUNTU LOGOSU SİLİNİR) ---
+echo "Plymouth: Ubuntu teması siliniyor..."
+rm -rf /usr/share/plymouth/themes/ubuntu-logo 2>/dev/null || true
+rm -rf /usr/share/plymouth/themes/ubuntu-text 2>/dev/null || true
+
+echo "Plymouth: hello teması kuruluyor..."
 mkdir -p /usr/share/plymouth/themes/hello
 
 cat > /usr/share/plymouth/themes/hello/hello.plymouth << 'PLYCONF'
@@ -200,12 +204,13 @@ fun animate() {
 animate();
 PLYANIM
 
-# Plymouth'u varsayılan yap ve initramfs'ı güncelle
 update-alternatives --install /usr/share/plymouth/themes/default.plymouth default.plymouth \
     /usr/share/plymouth/themes/hello/hello.plymouth 100 2>/dev/null || true
 update-alternatives --set default.plymouth /usr/share/plymouth/themes/hello/hello.plymouth 2>/dev/null || true
-update-initramfs -u 2>/dev/null || true
-echo "Plymouth 'hello' teması kuruldu."
+
+echo "update-initramfs çalıştırılıyor (hata ayıklamalı)..."
+update-initramfs -u -v 2>&1 | grep -iE "plymouth|hello|error|warning" || true
+echo "Plymouth güncellemesi tamamlandı."
 
 # --- 5. GTK ayarları ---
 mkdir -p /etc/gtk-3.0
@@ -243,8 +248,7 @@ mkdir -p /usr/share/backgrounds
 convert -size 1920x1080 xc:'#000000' /usr/share/backgrounds/hello-bg.png 2>/dev/null || \
 python3 -c "from PIL import Image;Image.new('RGB',(1920,1080),'black').save('/usr/share/backgrounds/hello-bg.png')" 2>/dev/null || true
 
-# --- 8. Sistem markalaması (KESİN ÇÖZÜM) ---
-# Tüm Ubuntu referanslarını "hello os" ile değiştir
+# --- 8. Sistem markalaması ---
 sed -i 's/Ubuntu/hello os/g' /etc/lsb-release 2>/dev/null || true
 sed -i 's/Ubuntu/hello os/g' /etc/os-release 2>/dev/null || true
 cat > /etc/os-release << 'OSRELEASE'
@@ -301,7 +305,7 @@ autologin-user=user
 autologin-user-timeout=0
 LIGHTDM
 
-# --- 11. Ubiquity CSS (beyaz kurulum arayüzü) ---
+# --- 11. Ubiquity CSS ---
 mkdir -p /usr/share/ubiquity/gtk
 cat > /usr/share/ubiquity/gtk/ubiquity.css << 'CSS'
 @define-color bg #ffffff;
@@ -357,12 +361,6 @@ treeview, .disk-list, list {
     background: rgba(0,0,0,0.03); border: 1.5px solid @bd; border-radius: 10px; padding: 4px;
 }
 treeview:selected, list row:selected { background: rgba(0,113,227,0.08); color: @fg; }
-
-.license-text { background: rgba(0,0,0,0.02); border: 1px solid @bd; border-radius: 8px; padding: 16px; font-size: 12px; color: @sc; line-height: 1.6; }
-.network-status { background: rgba(52,199,89,0.08); border: 1px solid rgba(52,199,89,0.2); border-radius: 10px; padding: 16px; }
-.partition-visual { background: rgba(0,0,0,0.05); border: 1px solid @bd; border-radius: 6px; min-height: 30px; }
-.install-log { background: @fg; color: #34c759; font-family: monospace; font-size: 11px; padding: 16px; border-radius: 8px; }
-.reboot-countdown { font-size: 48px; font-weight: 300; color: @fg; margin: 20px 0; }
 CSS
 
 mkdir -p /etc/ubiquity
@@ -373,10 +371,9 @@ gtk_theme=MacTahoe
 icon_theme=MacTahoe
 UBCNF
 
-# --- 12. Kurulum slaytları ---
+# --- 12. Kurulum slaytı (sadece welcome) ---
 S=/usr/share/ubiquity-slideshow/slides/l10n/tr
 mkdir -p "$S"
-
 cat > "$S/welcome.html" << 'SLIDE1'
 <!DOCTYPE html>
 <html lang="tr">
@@ -394,24 +391,17 @@ body{background:#fff;text-align:center;font-family:-apple-system,BlinkMacSystemF
 @keyframes oShift{0%,100%{filter:hue-rotate(0deg)}50%{filter:hue-rotate(15deg)}}
 .title{font-size:18px;font-weight:600;color:#1d1d1f;margin-bottom:6px}
 .subtitle{font-size:13px;color:#86868b}
-.step-indicator{display:flex;justify-content:center;gap:8px;margin-bottom:30px}
-.step-dot{width:8px;height:8px;border-radius:50%;background:rgba(0,0,0,.15)}
-.step-dot.active{background:#0071e3;width:24px;border-radius:4px;box-shadow:0 0 8px rgba(0,113,227,.4)}
-.step-dot.done{background:#34c759}
 </style></head><body>
-<div class="step-indicator"><div class="step-dot done"></div><div class="step-dot active"></div><div class="step-dot"></div><div class="step-dot"></div><div class="step-dot"></div></div>
 <div class="hello-text"><span class="h">h</span><span class="e">e</span><span class="l1">l</span><span class="l2">l</span><span class="o">o</span></div>
 <div class="title">hello os'a Hoş Geldiniz</div><div class="subtitle">Sürüm 1.0</div>
 </body></html>
 SLIDE1
 
-# Diğer slaytlar (language, disk, progress, complete) isteğe bağlı eklenebilir
-
 # --- 13. Temizlik ---
 apt clean 2>/dev/null || true
 rm -rf /tmp/* /var/cache/apt/*
 
-# --- 14. İlk açılış sihirbazını devre dışı bırak ---
+# --- 14. İlk açılış sihirbazı ---
 [ -f /etc/xdg/autostart/gnome-initial-setup-first-login.desktop ] && \
     echo "X-GNOME-Autostart-enabled=false" >> /etc/xdg/autostart/gnome-initial-setup-first-login.desktop 2>/dev/null || true
 
@@ -421,8 +411,7 @@ update-grub 2>/dev/null || grub-mkconfig -o /boot/grub/grub.cfg 2>/dev/null || t
 echo ""
 echo "╔══════════════════════════════════════╗"
 echo "║   Tüm özelleştirmeler tamamlandı!   ║"
-echo "║   Plymouth: hello teması             ║"
-echo "║   GRUB: Monterey + hello os marka    ║"
+echo "║   Plymouth: sadece hello (Ubuntu yok)║"
 echo "╚══════════════════════════════════════╝"
 FULLHOOK
 
