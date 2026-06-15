@@ -1,6 +1,6 @@
 #!/bin/bash
 # ╔══════════════════════════════════════════════════════════════════╗
-# ║   hello os – Ubuntu Plymouth Dosyalarını DEĞİŞTİR (Nihai)      ║
+# ║   hello os – Plymouth + Casper MÜDAHALE (Kesin Çözüm)          ║
 # ║   Ubuntu 24.04 Noble – GitHub Codespaces                       ║
 # ╚══════════════════════════════════════════════════════════════════╝
 
@@ -13,7 +13,7 @@ err()   { echo -e "${R}[X]${N} $1"; exit 1; }
 clear
 echo -e "${B}"
 echo "╔══════════════════════════════════════════╗"
-echo "║   hello os ISO Builder (Plymouth Fix)   ║"
+echo "║   hello os – Casper Müdahale Build      ║"
 echo "╚══════════════════════════════════════════╝"
 echo -e "${N}"
 
@@ -23,7 +23,7 @@ info "Disk: ${DISK_FREE} GB"
 [ "$DISK_FREE" -lt 18 ] && err "En az 18 GB boş alan gerekli!"
 
 # ── Çalışma dizini ──
-WORK="/tmp/hello-os-build"
+WORK="/tmp/hello-os-casper-fix"
 sudo rm -rf "$WORK"
 mkdir -p "$WORK"
 cd "$WORK"
@@ -47,7 +47,7 @@ sudo lb config \
     --mode ubuntu \
     --archive-areas "main restricted universe multiverse" \
     --parent-archive-areas "main restricted universe multiverse" \
-    --bootappend-live "boot=live components splash quiet" \
+    --bootappend-live "boot=live components quiet splash plymouth.theme=hello" \
     --iso-application "hello os 1.0" \
     --iso-volume "hello os 1.0" \
     --iso-publisher "hello os Project" \
@@ -62,7 +62,7 @@ log "Konfigürasyon tamam"
 # ── Dizinler ──
 mkdir -p config/package-lists config/hooks/normal
 
-# ── Paket listesi (GNOME + Wayland) ──
+# ── Paket listesi ──
 cat > config/package-lists/hello.list.chroot << 'PKG'
 gnome-session
 gnome-shell
@@ -97,12 +97,12 @@ locales
 tzdata
 PKG
 
-# ── Özelleştirme hook'u (UBUNTU DOSYALARINI DEĞİŞTİR) ──
+# ── Özelleştirme hook'u (TÜM PLYMOUTH TEMALARINI SİL + CASPER MÜDAHALE) ──
 info "Hook oluşturuluyor..."
 cat > config/hooks/normal/1000-hello-customization.hook.chroot << 'FULLHOOK'
 #!/bin/bash
 set -e
-echo "hello os – Özelleştirme (Ubuntu Plymouth dosyaları değiştiriliyor)"
+echo "hello os – Özelleştirme (Casper Müdahale)"
 
 # --- 1. Locale ve zaman dilimi ---
 locale-gen tr_TR.UTF-8 en_US.UTF-8 2>/dev/null || true
@@ -126,11 +126,20 @@ git clone --depth=1 https://github.com/vinceliuice/MacTahoe-gtk-theme.git 2>/dev
 mkdir -p /usr/share/themes /usr/share/icons
 [ -d /root/.themes ] && cp -r /root/.themes/MacTahoe* /usr/share/themes/ 2>/dev/null || true
 
-# --- 4. Plymouth: UBUNTU'NUN DOSYALARINI BİZİMKİLERLE DEĞİŞTİR ---
-echo "Plymouth: Ubuntu'nun tema dosyaları değiştiriliyor..."
+# --- 4. Plymouth: TÜM Ubuntu temalarını SİL, sadece hello bırak ---
+echo "Plymouth: Tüm Ubuntu temaları siliniyor..."
+rm -rf /usr/share/plymouth/themes/ubuntu-logo 2>/dev/null || true
+rm -rf /usr/share/plymouth/themes/ubuntu-text 2>/dev/null || true
+rm -rf /usr/share/plymouth/themes/bgrt 2>/dev/null || true
+rm -rf /usr/share/plymouth/themes/spinner 2>/dev/null || true
+rm -rf /usr/share/plymouth/themes/glow 2>/dev/null || true
+rm -rf /usr/share/plymouth/themes/solar 2>/dev/null || true
+rm -rf /usr/share/plymouth/themes/fade-in 2>/dev/null || true
+rm -rf /usr/share/plymouth/themes/script 2>/dev/null || true
 
-# Önce kendi temamızı oluştur (hello adında)
+echo "Plymouth: hello teması kuruluyor..."
 mkdir -p /usr/share/plymouth/themes/hello
+
 cat > /usr/share/plymouth/themes/hello/hello.plymouth << 'PLYCONF'
 [Plymouth Theme]
 Name=hello
@@ -201,36 +210,67 @@ fun animate() {
 animate();
 PLYANIM
 
-# Ubuntu'nun ubuntu-logo temasını kendi temamızla tamamen değiştir
-rm -rf /usr/share/plymouth/themes/ubuntu-logo
-cp -r /usr/share/plymouth/themes/hello /usr/share/plymouth/themes/ubuntu-logo
-# Dosya adlarını ubuntu-logo'nun beklediği şekilde yeniden adlandır
-mv /usr/share/plymouth/themes/ubuntu-logo/hello.plymouth /usr/share/plymouth/themes/ubuntu-logo/ubuntu-logo.plymouth
-mv /usr/share/plymouth/themes/ubuntu-logo/hello.script /usr/share/plymouth/themes/ubuntu-logo/ubuntu-logo.script
-# .plymouth dosyası içindeki referansları da güncelle
-sed -i 's/Name=hello/Name=ubuntu-logo/' /usr/share/plymouth/themes/ubuntu-logo/ubuntu-logo.plymouth
-sed -i 's|ImageDir=/usr/share/plymouth/themes/hello|ImageDir=/usr/share/plymouth/themes/ubuntu-logo|' /usr/share/plymouth/themes/ubuntu-logo/ubuntu-logo.plymouth
-sed -i 's|ScriptFile=/usr/share/plymouth/themes/hello/hello.script|ScriptFile=/usr/share/plymouth/themes/ubuntu-logo/ubuntu-logo.script|' /usr/share/plymouth/themes/ubuntu-logo/ubuntu-logo.plymouth
-
-# Plymouth'u varsayılan olarak ubuntu-logo'ya ayarla (zaten öyle, ama emin olalım)
-plymouth-set-default-theme ubuntu-logo 2>/dev/null || true
+# Plymouth ayarlarını zorla hello yap
+plymouth-set-default-theme hello 2>/dev/null || true
 update-alternatives --install /usr/share/plymouth/themes/default.plymouth default.plymouth \
-    /usr/share/plymouth/themes/ubuntu-logo/ubuntu-logo.plymouth 200 2>/dev/null || true
-update-alternatives --set default.plymouth /usr/share/plymouth/themes/ubuntu-logo/ubuntu-logo.plymouth 2>/dev/null || true
+    /usr/share/plymouth/themes/hello/hello.plymouth 200 2>/dev/null || true
+update-alternatives --set default.plymouth /usr/share/plymouth/themes/hello/hello.plymouth 2>/dev/null || true
 
-# /etc/plymouth/plymouthd.conf güncelle
+# /etc/plymouth/plymouthd.conf oluştur (tema adını zorla)
 mkdir -p /etc/plymouth
 cat > /etc/plymouth/plymouthd.conf << 'PLYDCONF'
 [Daemon]
-Theme=ubuntu-logo
+Theme=hello
 ShowDelay=0
 PLYDCONF
 
+# --- 5. CASPER'IN PLYMOUTH YÜKLEME SCRIPT'İNİ DEĞİŞTİR ---
+echo "Casper: Plymouth yükleme script'i değiştiriliyor..."
+# Casper'ın initramfs içindeki Plymouth script'ini bul ve değiştir
+CASPER_SCRIPT="/usr/share/initramfs-tools/scripts/casper-bottom/10plymouth"
+if [ -f "$CASPER_SCRIPT" ]; then
+    # Orijinali yedekle
+    cp "$CASPER_SCRIPT" "${CASPER_SCRIPT}.bak"
+    # Script'i değiştir: sadece hello temasını yükle
+    cat > "$CASPER_SCRIPT" << 'CASPERPLY'
+#!/bin/sh
+# Casper Plymouth script - hello os tarafından değiştirildi
+
+PREREQ=""
+prereqs() {
+    echo "$PREREQ"
+}
+
+case $1 in
+prereqs)
+    prereqs
+    exit 0
+    ;;
+esac
+
+. /usr/share/initramfs-tools/hook-functions
+
+# Plymouth'u hello temasıyla başlat
+if [ -x /sbin/plymouthd ]; then
+    /sbin/plymouthd --mode=boot --tty=/dev/tty7 --theme=hello
+    /bin/plymouth show-splash
+fi
+CASPERPLY
+    chmod +x "$CASPER_SCRIPT"
+    echo "Casper Plymouth script'i güncellendi."
+else
+    echo "UYARI: Casper Plymouth script'i bulunamadı ($CASPER_SCRIPT)"
+    # Alternatif konumları dene
+    find /usr/share/initramfs-tools -name "*plymouth*" -type f 2>/dev/null | while read f; do
+        echo "Bulunan dosya: $f"
+    done
+fi
+
 # Initramfs'ı yeniden oluştur (tüm kernel'ler için)
 update-initramfs -u -k all 2>/dev/null || update-initramfs -u 2>/dev/null || true
-echo "Plymouth: ubuntu-logo temasının içeriği hello ile değiştirildi."
+echo "Plymouth + Casper güncellemesi tamamlandı."
 
-# --- 5. GTK ayarları ---
+# --- 6. GTK ayarları ---
 mkdir -p /etc/gtk-3.0
 cat > /etc/gtk-3.0/settings.ini << 'GTKSET'
 [Settings]
@@ -240,7 +280,7 @@ gtk-font-name=Pacifico 11
 gtk-cursor-theme-name=MacTahoe
 GTKSET
 
-# --- 6. GNOME masaüstü ayarları ---
+# --- 7. GNOME masaüstü ayarları ---
 mkdir -p /etc/dconf/db/local.d
 cat > /etc/dconf/db/local.d/01-hello << 'GNOME'
 [org/gnome/desktop/interface]
@@ -261,12 +301,12 @@ picture-uri-dark='file:///usr/share/backgrounds/hello-bg.png'
 primary-color='#000000'
 GNOME
 
-# --- 7. Siyah duvar kağıdı ---
+# --- 8. Siyah duvar kağıdı ---
 mkdir -p /usr/share/backgrounds
 convert -size 1920x1080 xc:'#000000' /usr/share/backgrounds/hello-bg.png 2>/dev/null || \
 python3 -c "from PIL import Image;Image.new('RGB',(1920,1080),'black').save('/usr/share/backgrounds/hello-bg.png')" 2>/dev/null || true
 
-# --- 8. Sistem markalaması ---
+# --- 9. Sistem markalaması ---
 sed -i 's/Ubuntu/hello os/g' /etc/lsb-release 2>/dev/null || true
 sed -i 's/Ubuntu/hello os/g' /etc/os-release 2>/dev/null || true
 cat > /etc/os-release << 'OSRELEASE'
@@ -282,7 +322,7 @@ echo "hello os 1.0" > /etc/hello-release
 echo "hello-os" > /etc/hostname
 echo "127.0.1.1 hello-os" >> /etc/hosts 2>/dev/null || true
 
-# --- 9. GRUB + Monterey teması ---
+# --- 10. GRUB + Monterey teması ---
 mkdir -p /etc/default/grub.d
 cd /tmp
 rm -rf monterey-grub-theme
@@ -302,12 +342,12 @@ cat > /etc/default/grub.d/99-hello.cfg << 'GRUB'
 GRUB_DISTRIBUTOR="hello os"
 GRUB_TIMEOUT=5
 GRUB_TIMEOUT_STYLE=menu
-GRUB_CMDLINE_LINUX_DEFAULT="quiet splash"
+GRUB_CMDLINE_LINUX_DEFAULT="quiet splash plymouth.theme=hello"
 GRUB_GFXMODE=1920x1080
 GRUB_THEME="/boot/grub/themes/monterey/theme.txt"
 GRUB
 
-# --- 10. Kullanıcı hesabı ---
+# --- 11. Kullanıcı hesabı ---
 useradd -m -s /bin/bash -G sudo,adm,cdrom,dip,plugdev,lpadmin,netdev user 2>/dev/null || true
 echo "user:123456" | chpasswd 2>/dev/null || true
 mkdir -p /etc/gdm3 /etc/lightdm
@@ -323,7 +363,7 @@ autologin-user=user
 autologin-user-timeout=0
 LIGHTDM
 
-# --- 11. Ubiquity CSS (beyaz kurulum arayüzü) ---
+# --- 12. Ubiquity CSS (beyaz kurulum arayüzü) ---
 mkdir -p /usr/share/ubiquity/gtk
 cat > /usr/share/ubiquity/gtk/ubiquity.css << 'CSS'
 @define-color bg #ffffff;
@@ -389,7 +429,7 @@ gtk_theme=MacTahoe
 icon_theme=MacTahoe
 UBCNF
 
-# --- 12. Kurulum slaytları (TÜMÜ) ---
+# --- 13. Kurulum slaytları (TÜMÜ) ---
 S=/usr/share/ubiquity-slideshow/slides/l10n/tr
 mkdir -p "$S"
 
@@ -486,21 +526,21 @@ body{background:#fff;text-align:center;font-family:-apple-system,sans-serif;padd
 </body></html>
 SLIDE5
 
-# --- 13. Temizlik ---
+# --- 14. Temizlik ---
 apt clean 2>/dev/null || true
 rm -rf /tmp/* /var/cache/apt/*
 
-# --- 14. İlk açılış sihirbazı ---
+# --- 15. İlk açılış sihirbazı ---
 [ -f /etc/xdg/autostart/gnome-initial-setup-first-login.desktop ] && \
     echo "X-GNOME-Autostart-enabled=false" >> /etc/xdg/autostart/gnome-initial-setup-first-login.desktop 2>/dev/null || true
 
-# --- 15. GRUB güncelle ---
+# --- 16. GRUB güncelle ---
 update-grub 2>/dev/null || grub-mkconfig -o /boot/grub/grub.cfg 2>/dev/null || true
 
 echo ""
 echo "╔══════════════════════════════════════╗"
 echo "║   Özelleştirmeler tamamlandı!       ║"
-echo "║   Plymouth: ubuntu-logo (hello)      ║"
+echo "║   Plymouth + Casper güncellendi      ║"
 echo "╚══════════════════════════════════════╝"
 FULLHOOK
 
@@ -554,12 +594,12 @@ MENU TITLE hello os 1.0
 LABEL live
   MENU LABEL ^Start hello os
   KERNEL /casper/${KERNEL}
-  APPEND initrd=/casper/${INITRD} boot=casper quiet splash --
+  APPEND initrd=/casper/${INITRD} boot=casper quiet splash plymouth.theme=hello --
 
 LABEL install
   MENU LABEL ^Install hello os
   KERNEL /casper/${KERNEL}
-  APPEND initrd=/casper/${INITRD} boot=casper only-ubiquity quiet splash --
+  APPEND initrd=/casper/${INITRD} boot=casper only-ubiquity quiet splash plymouth.theme=hello --
 EOF
 
 mkdir -p "$TMPISO/boot/grub"
@@ -571,11 +611,11 @@ fi
 cat > "$TMPISO/boot/grub/grub.cfg" << EOF
 set timeout=5
 menuentry "hello os - Live" {
-    linux /casper/${KERNEL} boot=casper quiet splash
+    linux /casper/${KERNEL} boot=casper quiet splash plymouth.theme=hello
     initrd /casper/${INITRD}
 }
 menuentry "hello os - Install" {
-    linux /casper/${KERNEL} boot=casper only-ubiquity quiet splash
+    linux /casper/${KERNEL} boot=casper only-ubiquity quiet splash plymouth.theme=hello
     initrd /casper/${INITRD}
 }
 EOF
