@@ -1,19 +1,20 @@
 #!/bin/bash
 # ╔══════════════════════════════════════════════════════════════════╗
-# ║   hello os – Plymouth + Casper MÜDAHALE (Kesin Çözüm)          ║
+# ║   hello os – MANUEL CHROOT MÜDAHALE (Kesin Çözüm)              ║
 # ║   Ubuntu 24.04 Noble – GitHub Codespaces                       ║
 # ╚══════════════════════════════════════════════════════════════════╝
 
 set -e
-G='\033[0;32m' B='\033[0;34m' R='\033[0;31m' N='\033[0m'
+G='\033[0;32m' B='\033[0;34m' R='\033[0;31m' Y='\033[1;33m' N='\033[0m'
 log()   { echo -e "${G}[✓]${N} $1"; }
 info()  { echo -e "${B}[*]${N} $1"; }
+warn()  { echo -e "${Y}[!]${N} $1"; }
 err()   { echo -e "${R}[X]${N} $1"; exit 1; }
 
 clear
 echo -e "${B}"
 echo "╔══════════════════════════════════════════╗"
-echo "║   hello os – Casper Müdahale Build      ║"
+echo "║   hello os – Manuel Chroot Build        ║"
 echo "╚══════════════════════════════════════════╝"
 echo -e "${N}"
 
@@ -23,7 +24,7 @@ info "Disk: ${DISK_FREE} GB"
 [ "$DISK_FREE" -lt 18 ] && err "En az 18 GB boş alan gerekli!"
 
 # ── Çalışma dizini ──
-WORK="/tmp/hello-os-casper-fix"
+WORK="/tmp/hello-manual-build"
 sudo rm -rf "$WORK"
 mkdir -p "$WORK"
 cd "$WORK"
@@ -60,7 +61,8 @@ sudo lb config \
 log "Konfigürasyon tamam"
 
 # ── Dizinler ──
-mkdir -p config/package-lists config/hooks/normal
+mkdir -p config/package-lists
+# Hook kullanmayacağız, manuel yapacağız
 
 # ── Paket listesi ──
 cat > config/package-lists/hello.list.chroot << 'PKG'
@@ -96,51 +98,57 @@ sudo
 locales
 tzdata
 PKG
+log "Paket listesi hazır"
 
-# ── Özelleştirme hook'u (TÜM PLYMOUTH TEMALARINI SİL + CASPER MÜDAHALE) ──
-info "Hook oluşturuluyor..."
-cat > config/hooks/normal/1000-hello-customization.hook.chroot << 'FULLHOOK'
-#!/bin/bash
-set -e
-echo "hello os – Özelleştirme (Casper Müdahale)"
+# ── ADIM 1: Bootstrap ve Chroot Oluştur ──
+info "Bootstrap ve chroot oluşturuluyor (bu uzun sürebilir)..."
+sudo lb bootstrap 2>&1 | tee /tmp/bootstrap.log
+log "Bootstrap tamamlandı"
+
+info "Chroot kuruluyor (paketler indiriliyor)..."
+sudo lb chroot 2>&1 | tee /tmp/chroot.log
+log "Chroot tamamlandı"
+
+# ── ADIM 2: CHROOT'A MANUEL MÜDAHALE ──
+info "Chroot'a manuel müdahale ediliyor..."
+CHROOT_DIR="$WORK/chroot"
+
+if [ ! -d "$CHROOT_DIR" ]; then
+    err "Chroot dizini bulunamadı: $CHROOT_DIR"
+fi
+
+# Chroot içinde komut çalıştırma fonksiyonu
+run_in_chroot() {
+    sudo chroot "$CHROOT_DIR" /bin/bash -c "$1"
+}
 
 # --- 1. Locale ve zaman dilimi ---
-locale-gen tr_TR.UTF-8 en_US.UTF-8 2>/dev/null || true
-update-locale LANG=tr_TR.UTF-8 2>/dev/null || true
-ln -sf /usr/share/zoneinfo/Europe/Istanbul /etc/localtime 2>/dev/null || true
+info "Locale ayarlanıyor..."
+run_in_chroot "locale-gen tr_TR.UTF-8 en_US.UTF-8 2>/dev/null || true"
+run_in_chroot "update-locale LANG=tr_TR.UTF-8 2>/dev/null || true"
+run_in_chroot "ln -sf /usr/share/zoneinfo/Europe/Istanbul /etc/localtime 2>/dev/null || true"
 
 # --- 2. Pacifico font ---
-mkdir -p /usr/share/fonts/truetype/pacifico
-cd /tmp
-wget -q "https://github.com/google/fonts/raw/main/ofl/pacifico/Pacifico-Regular.ttf" -O Pacifico.ttf 2>/dev/null || \
-curl -sL "https://raw.githubusercontent.com/google/fonts/main/ofl/pacifico/Pacifico-Regular.ttf" -o Pacifico.ttf 2>/dev/null || true
-[ -f Pacifico.ttf ] && cp Pacifico.ttf /usr/share/fonts/truetype/pacifico/ && fc-cache -f
+info "Pacifico font indiriliyor..."
+run_in_chroot "mkdir -p /usr/share/fonts/truetype/pacifico"
+run_in_chroot "cd /tmp && wget -q 'https://github.com/google/fonts/raw/main/ofl/pacifico/Pacifico-Regular.ttf' -O Pacifico.ttf 2>/dev/null || curl -sL 'https://raw.githubusercontent.com/google/fonts/main/ofl/pacifico/Pacifico-Regular.ttf' -o Pacifico.ttf 2>/dev/null || true"
+run_in_chroot "[ -f /tmp/Pacifico.ttf ] && cp /tmp/Pacifico.ttf /usr/share/fonts/truetype/pacifico/ && fc-cache -f"
 
 # --- 3. MacTahoe GTK teması ---
-cd /tmp && rm -rf MacTahoe-gtk-theme
-git clone --depth=1 https://github.com/vinceliuice/MacTahoe-gtk-theme.git 2>/dev/null || {
-    wget -qO- https://github.com/vinceliuice/MacTahoe-gtk-theme/archive/master.tar.gz | tar -xz
-    mv MacTahoe-gtk-theme-master MacTahoe-gtk-theme
-}
-[ -d MacTahoe-gtk-theme ] && cd MacTahoe-gtk-theme && ./install.sh -c dark -i 2>/dev/null || true
-mkdir -p /usr/share/themes /usr/share/icons
-[ -d /root/.themes ] && cp -r /root/.themes/MacTahoe* /usr/share/themes/ 2>/dev/null || true
+info "MacTahoe teması kuruluyor..."
+run_in_chroot "cd /tmp && rm -rf MacTahoe-gtk-theme && git clone --depth=1 https://github.com/vinceliuice/MacTahoe-gtk-theme.git 2>/dev/null || { wget -qO- https://github.com/vinceliuice/MacTahoe-gtk-theme/archive/master.tar.gz | tar -xz && mv MacTahoe-gtk-theme-master MacTahoe-gtk-theme; }"
+run_in_chroot "[ -d /tmp/MacTahoe-gtk-theme ] && cd /tmp/MacTahoe-gtk-theme && ./install.sh -c dark -i 2>/dev/null || true"
+run_in_chroot "mkdir -p /usr/share/themes /usr/share/icons"
+run_in_chroot "[ -d /root/.themes ] && cp -r /root/.themes/MacTahoe* /usr/share/themes/ 2>/dev/null || true"
 
-# --- 4. Plymouth: TÜM Ubuntu temalarını SİL, sadece hello bırak ---
-echo "Plymouth: Tüm Ubuntu temaları siliniyor..."
-rm -rf /usr/share/plymouth/themes/ubuntu-logo 2>/dev/null || true
-rm -rf /usr/share/plymouth/themes/ubuntu-text 2>/dev/null || true
-rm -rf /usr/share/plymouth/themes/bgrt 2>/dev/null || true
-rm -rf /usr/share/plymouth/themes/spinner 2>/dev/null || true
-rm -rf /usr/share/plymouth/themes/glow 2>/dev/null || true
-rm -rf /usr/share/plymouth/themes/solar 2>/dev/null || true
-rm -rf /usr/share/plymouth/themes/fade-in 2>/dev/null || true
-rm -rf /usr/share/plymouth/themes/script 2>/dev/null || true
+# --- 4. Plymouth: TÜM Ubuntu temalarını SİL, hello temasını kur ---
+info "Plymouth temaları siliniyor ve hello kuruluyor..."
+run_in_chroot "rm -rf /usr/share/plymouth/themes/ubuntu-logo /usr/share/plymouth/themes/ubuntu-text /usr/share/plymouth/themes/bgrt /usr/share/plymouth/themes/spinner /usr/share/plymouth/themes/glow /usr/share/plymouth/themes/solar /usr/share/plymouth/themes/fade-in /usr/share/plymouth/themes/script 2>/dev/null || true"
 
-echo "Plymouth: hello teması kuruluyor..."
-mkdir -p /usr/share/plymouth/themes/hello
+run_in_chroot "mkdir -p /usr/share/plymouth/themes/hello"
 
-cat > /usr/share/plymouth/themes/hello/hello.plymouth << 'PLYCONF'
+# Plymouth .plymouth dosyası
+sudo tee "$CHROOT_DIR/usr/share/plymouth/themes/hello/hello.plymouth" > /dev/null << 'PLYCONF'
 [Plymouth Theme]
 Name=hello
 Description=hello Boot Screen
@@ -150,7 +158,8 @@ ImageDir=/usr/share/plymouth/themes/hello
 ScriptFile=/usr/share/plymouth/themes/hello/hello.script
 PLYCONF
 
-cat > /usr/share/plymouth/themes/hello/hello.script << 'PLYANIM'
+# Plymouth .script dosyası
+sudo tee "$CHROOT_DIR/usr/share/plymouth/themes/hello/hello.script" > /dev/null << 'PLYANIM'
 screen_width = Window.GetWidth();
 screen_height = Window.GetHeight();
 
@@ -210,69 +219,52 @@ fun animate() {
 animate();
 PLYANIM
 
-# Plymouth ayarlarını zorla hello yap
-plymouth-set-default-theme hello 2>/dev/null || true
-update-alternatives --install /usr/share/plymouth/themes/default.plymouth default.plymouth \
-    /usr/share/plymouth/themes/hello/hello.plymouth 200 2>/dev/null || true
-update-alternatives --set default.plymouth /usr/share/plymouth/themes/hello/hello.plymouth 2>/dev/null || true
+run_in_chroot "plymouth-set-default-theme hello 2>/dev/null || true"
+run_in_chroot "update-alternatives --install /usr/share/plymouth/themes/default.plymouth default.plymouth /usr/share/plymouth/themes/hello/hello.plymouth 200 2>/dev/null || true"
+run_in_chroot "update-alternatives --set default.plymouth /usr/share/plymouth/themes/hello/hello.plymouth 2>/dev/null || true"
 
-# /etc/plymouth/plymouthd.conf oluştur (tema adını zorla)
-mkdir -p /etc/plymouth
-cat > /etc/plymouth/plymouthd.conf << 'PLYDCONF'
+# /etc/plymouth/plymouthd.conf
+run_in_chroot "mkdir -p /etc/plymouth"
+sudo tee "$CHROOT_DIR/etc/plymouth/plymouthd.conf" > /dev/null << 'PLYDCONF'
 [Daemon]
 Theme=hello
 ShowDelay=0
 PLYDCONF
 
-# --- 5. CASPER'IN PLYMOUTH YÜKLEME SCRIPT'İNİ DEĞİŞTİR ---
-echo "Casper: Plymouth yükleme script'i değiştiriliyor..."
-# Casper'ın initramfs içindeki Plymouth script'ini bul ve değiştir
-CASPER_SCRIPT="/usr/share/initramfs-tools/scripts/casper-bottom/10plymouth"
+# --- 5. Casper Plymouth script'ini değiştir ---
+info "Casper Plymouth script'i değiştiriliyor..."
+CASPER_SCRIPT="$CHROOT_DIR/usr/share/initramfs-tools/scripts/casper-bottom/10plymouth"
 if [ -f "$CASPER_SCRIPT" ]; then
-    # Orijinali yedekle
-    cp "$CASPER_SCRIPT" "${CASPER_SCRIPT}.bak"
-    # Script'i değiştir: sadece hello temasını yükle
-    cat > "$CASPER_SCRIPT" << 'CASPERPLY'
+    sudo cp "$CASPER_SCRIPT" "${CASPER_SCRIPT}.bak"
+    sudo tee "$CASPER_SCRIPT" > /dev/null << 'CASPERPLY'
 #!/bin/sh
-# Casper Plymouth script - hello os tarafından değiştirildi
+# Casper Plymouth script - hello os
 
 PREREQ=""
-prereqs() {
-    echo "$PREREQ"
-}
-
-case $1 in
-prereqs)
-    prereqs
-    exit 0
-    ;;
-esac
+prereqs() { echo "$PREREQ"; }
+case $1 in prereqs) prereqs; exit 0;; esac
 
 . /usr/share/initramfs-tools/hook-functions
 
-# Plymouth'u hello temasıyla başlat
 if [ -x /sbin/plymouthd ]; then
     /sbin/plymouthd --mode=boot --tty=/dev/tty7 --theme=hello
     /bin/plymouth show-splash
 fi
 CASPERPLY
-    chmod +x "$CASPER_SCRIPT"
-    echo "Casper Plymouth script'i güncellendi."
+    sudo chmod +x "$CASPER_SCRIPT"
+    log "Casper script değiştirildi"
 else
-    echo "UYARI: Casper Plymouth script'i bulunamadı ($CASPER_SCRIPT)"
-    # Alternatif konumları dene
-    find /usr/share/initramfs-tools -name "*plymouth*" -type f 2>/dev/null | while read f; do
-        echo "Bulunan dosya: $f"
-    done
+    warn "Casper script bulunamadı: $CASPER_SCRIPT"
 fi
 
-# Initramfs'ı yeniden oluştur (tüm kernel'ler için)
-update-initramfs -u -k all 2>/dev/null || update-initramfs -u 2>/dev/null || true
-echo "Plymouth + Casper güncellemesi tamamlandı."
+# --- 6. Initramfs güncelle ---
+info "Initramfs güncelleniyor..."
+run_in_chroot "update-initramfs -u -k all 2>/dev/null || update-initramfs -u 2>/dev/null || true"
 
-# --- 6. GTK ayarları ---
-mkdir -p /etc/gtk-3.0
-cat > /etc/gtk-3.0/settings.ini << 'GTKSET'
+# --- 7. GTK ayarları ---
+info "GTK ayarları..."
+run_in_chroot "mkdir -p /etc/gtk-3.0"
+sudo tee "$CHROOT_DIR/etc/gtk-3.0/settings.ini" > /dev/null << 'GTKSET'
 [Settings]
 gtk-theme-name=MacTahoe
 gtk-icon-theme-name=MacTahoe
@@ -280,9 +272,10 @@ gtk-font-name=Pacifico 11
 gtk-cursor-theme-name=MacTahoe
 GTKSET
 
-# --- 7. GNOME masaüstü ayarları ---
-mkdir -p /etc/dconf/db/local.d
-cat > /etc/dconf/db/local.d/01-hello << 'GNOME'
+# --- 8. GNOME masaüstü ayarları ---
+info "GNOME ayarları..."
+run_in_chroot "mkdir -p /etc/dconf/db/local.d"
+sudo tee "$CHROOT_DIR/etc/dconf/db/local.d/01-hello" > /dev/null << 'GNOME'
 [org/gnome/desktop/interface]
 gtk-theme='MacTahoe'
 icon-theme='MacTahoe'
@@ -297,19 +290,17 @@ name='MacTahoe'
 
 [org/gnome/desktop/background]
 picture-uri='file:///usr/share/backgrounds/hello-bg.png'
-picture-uri-dark='file:///usr/share/backgrounds/hello-bg.png'
 primary-color='#000000'
 GNOME
 
-# --- 8. Siyah duvar kağıdı ---
-mkdir -p /usr/share/backgrounds
-convert -size 1920x1080 xc:'#000000' /usr/share/backgrounds/hello-bg.png 2>/dev/null || \
-python3 -c "from PIL import Image;Image.new('RGB',(1920,1080),'black').save('/usr/share/backgrounds/hello-bg.png')" 2>/dev/null || true
+# --- 9. Siyah duvar kağıdı ---
+info "Duvar kağıdı..."
+run_in_chroot "mkdir -p /usr/share/backgrounds"
+run_in_chroot "convert -size 1920x1080 xc:'#000000' /usr/share/backgrounds/hello-bg.png 2>/dev/null || python3 -c \"from PIL import Image;Image.new('RGB',(1920,1080),'black').save('/usr/share/backgrounds/hello-bg.png')\" 2>/dev/null || true"
 
-# --- 9. Sistem markalaması ---
-sed -i 's/Ubuntu/hello os/g' /etc/lsb-release 2>/dev/null || true
-sed -i 's/Ubuntu/hello os/g' /etc/os-release 2>/dev/null || true
-cat > /etc/os-release << 'OSRELEASE'
+# --- 10. Sistem markalaması ---
+info "Sistem markalaması..."
+sudo tee "$CHROOT_DIR/etc/os-release" > /dev/null << 'OSRELEASE'
 PRETTY_NAME="hello os"
 NAME="hello os"
 VERSION_ID="1.0"
@@ -318,54 +309,49 @@ ID=hello-os
 ID_LIKE=ubuntu
 HOME_URL="https://hello-os.org"
 OSRELEASE
-echo "hello os 1.0" > /etc/hello-release
-echo "hello-os" > /etc/hostname
-echo "127.0.1.1 hello-os" >> /etc/hosts 2>/dev/null || true
+run_in_chroot "echo 'hello os 1.0' > /etc/hello-release"
+run_in_chroot "echo 'hello-os' > /etc/hostname"
+run_in_chroot "echo '127.0.1.1 hello-os' >> /etc/hosts 2>/dev/null || true"
+run_in_chroot "sed -i 's/Ubuntu/hello os/g' /etc/lsb-release 2>/dev/null || true"
+run_in_chroot "sed -i 's/Ubuntu/hello os/g' /etc/os-release 2>/dev/null || true"
 
-# --- 10. GRUB + Monterey teması ---
-mkdir -p /etc/default/grub.d
-cd /tmp
-rm -rf monterey-grub-theme
-git clone --depth=1 https://github.com/sandesh236/monterey-grub-theme.git 2>/dev/null || true
-if [ -d monterey-grub-theme ]; then
-    cd monterey-grub-theme
-    if [ -f install.sh ]; then
-        chmod +x install.sh
-        ./install.sh
-    else
-        mkdir -p /boot/grub/themes/monterey
-        cp -r . /boot/grub/themes/monterey/
-    fi
-fi
+# --- 11. GRUB + Monterey teması ---
+info "GRUB + Monterey teması..."
+run_in_chroot "mkdir -p /etc/default/grub.d"
+run_in_chroot "cd /tmp && rm -rf monterey-grub-theme && git clone --depth=1 https://github.com/sandesh236/monterey-grub-theme.git 2>/dev/null || true"
+run_in_chroot "if [ -d /tmp/monterey-grub-theme ]; then cd /tmp/monterey-grub-theme; if [ -f install.sh ]; then chmod +x install.sh && ./install.sh; else mkdir -p /boot/grub/themes/monterey && cp -r . /boot/grub/themes/monterey/; fi; fi"
 
-cat > /etc/default/grub.d/99-hello.cfg << 'GRUB'
+sudo tee "$CHROOT_DIR/etc/default/grub.d/99-hello.cfg" > /dev/null << 'GRUB'
 GRUB_DISTRIBUTOR="hello os"
 GRUB_TIMEOUT=5
-GRUB_TIMEOUT_STYLE=menu
 GRUB_CMDLINE_LINUX_DEFAULT="quiet splash plymouth.theme=hello"
 GRUB_GFXMODE=1920x1080
 GRUB_THEME="/boot/grub/themes/monterey/theme.txt"
 GRUB
 
-# --- 11. Kullanıcı hesabı ---
-useradd -m -s /bin/bash -G sudo,adm,cdrom,dip,plugdev,lpadmin,netdev user 2>/dev/null || true
-echo "user:123456" | chpasswd 2>/dev/null || true
-mkdir -p /etc/gdm3 /etc/lightdm
-cat > /etc/gdm3/custom.conf << 'GDM'
+# --- 12. Kullanıcı hesabı ---
+info "Kullanıcı hesabı..."
+run_in_chroot "useradd -m -s /bin/bash -G sudo,adm,cdrom,dip,plugdev,lpadmin,netdev user 2>/dev/null || true"
+run_in_chroot "echo 'user:123456' | chpasswd 2>/dev/null || true"
+run_in_chroot "mkdir -p /etc/gdm3 /etc/lightdm"
+
+sudo tee "$CHROOT_DIR/etc/gdm3/custom.conf" > /dev/null << 'GDM'
 [daemon]
 AutomaticLoginEnable=true
 AutomaticLogin=user
 WaylandEnable=true
 GDM
-cat > /etc/lightdm/lightdm.conf << 'LIGHTDM'
+
+sudo tee "$CHROOT_DIR/etc/lightdm/lightdm.conf" > /dev/null << 'LIGHTDM'
 [Seat:*]
 autologin-user=user
 autologin-user-timeout=0
 LIGHTDM
 
-# --- 12. Ubiquity CSS (beyaz kurulum arayüzü) ---
-mkdir -p /usr/share/ubiquity/gtk
-cat > /usr/share/ubiquity/gtk/ubiquity.css << 'CSS'
+# --- 13. Ubiquity CSS ---
+info "Kurulum arayüzü CSS..."
+run_in_chroot "mkdir -p /usr/share/ubiquity/gtk"
+sudo tee "$CHROOT_DIR/usr/share/ubiquity/gtk/ubiquity.css" > /dev/null << 'CSS'
 @define-color bg #ffffff;
 @define-color fg #1d1d1f;
 @define-color ac #0071e3;
@@ -421,19 +407,11 @@ treeview, .disk-list, list {
 treeview:selected, list row:selected { background: rgba(0,113,227,0.08); color: @fg; }
 CSS
 
-mkdir -p /etc/ubiquity
-cat > /etc/ubiquity/ubiquity.conf << 'UBCNF'
-[Ubiquity]
-theme=MacTahoe
-gtk_theme=MacTahoe
-icon_theme=MacTahoe
-UBCNF
+# --- 14. Kurulum slaytları ---
+info "Kurulum slaytları..."
+run_in_chroot "mkdir -p /usr/share/ubiquity-slideshow/slides/l10n/tr"
 
-# --- 13. Kurulum slaytları (TÜMÜ) ---
-S=/usr/share/ubiquity-slideshow/slides/l10n/tr
-mkdir -p "$S"
-
-cat > "$S/welcome.html" << 'SLIDE1'
+sudo tee "$CHROOT_DIR/usr/share/ubiquity-slideshow/slides/l10n/tr/welcome.html" > /dev/null << 'SLIDE1'
 <!DOCTYPE html>
 <html lang="tr">
 <head><meta charset="UTF-8">
@@ -442,128 +420,65 @@ cat > "$S/welcome.html" << 'SLIDE1'
 *{margin:0;padding:0;box-sizing:border-box}
 body{background:#fff;text-align:center;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;padding:60px 40px}
 .hello-text{font-family:'Pacifico',cursive;font-size:90px;display:flex;justify-content:center;gap:4px;margin-bottom:24px}
-.h{color:#8B5CF6;text-shadow:0 0 20px rgba(139,92,246,.15)}
-.e{color:#EC4899;text-shadow:0 0 20px rgba(236,72,153,.15)}
-.l1{color:#EF4444;text-shadow:0 0 20px rgba(239,68,68,.15)}
-.l2{color:#F97316;text-shadow:0 0 20px rgba(249,115,22,.15)}
+.h{color:#8B5CF6}.e{color:#EC4899}.l1{color:#EF4444}.l2{color:#F97316}
 .o{background:linear-gradient(90deg,#FBBF24,#F59E0B,#10B981);-webkit-background-clip:text;-webkit-text-fill-color:transparent;animation:oShift 3s ease-in-out infinite}
 @keyframes oShift{0%,100%{filter:hue-rotate(0deg)}50%{filter:hue-rotate(15deg)}}
 .title{font-size:18px;font-weight:600;color:#1d1d1f;margin-bottom:6px}
 .subtitle{font-size:13px;color:#86868b}
-.step-indicator{display:flex;justify-content:center;gap:8px;margin-bottom:30px}
-.step-dot{width:8px;height:8px;border-radius:50%;background:rgba(0,0,0,.15)}
-.step-dot.active{background:#0071e3;width:24px;border-radius:4px;box-shadow:0 0 8px rgba(0,113,227,.4)}
-.step-dot.done{background:#34c759}
 </style></head><body>
-<div class="step-indicator"><div class="step-dot done"></div><div class="step-dot active"></div><div class="step-dot"></div><div class="step-dot"></div><div class="step-dot"></div></div>
 <div class="hello-text"><span class="h">h</span><span class="e">e</span><span class="l1">l</span><span class="l2">l</span><span class="o">o</span></div>
 <div class="title">hello os'a Hoş Geldiniz</div><div class="subtitle">Sürüm 1.0</div>
 </body></html>
 SLIDE1
 
-cat > "$S/language.html" << 'SLIDE2'
-<!DOCTYPE html><html lang="tr"><head><meta charset="UTF-8"><style>
-*{margin:0;padding:0;box-sizing:border-box}
-body{background:#fff;color:#1d1d1f;text-align:center;font-family:-apple-system,sans-serif;padding:40px}
-h2{font-size:18px;font-weight:600;margin-bottom:20px}
-.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;max-width:400px;margin:0 auto;text-align:left}
-.item{background:rgba(0,0,0,.03);border:1.5px solid rgba(0,0,0,.08);border-radius:8px;padding:12px;font-size:14px}
-.item.sel{border-color:#0071e3;background:rgba(0,113,227,.08)}
-.code{font-weight:600;color:#1d1d1f}.name{color:#86868b;font-size:12px}
-</style></head><body><h2>Dil Seçin</h2><div class="grid">
-<div class="item sel"><span class="code">TR</span> <span class="name">Türkçe</span></div>
-<div class="item"><span class="code">EN</span> <span class="name">English</span></div>
-<div class="item"><span class="code">DE</span> <span class="name">Deutsch</span></div>
-<div class="item"><span class="code">FR</span> <span class="name">Français</span></div>
-</div></body></html>
-SLIDE2
+# --- 15. GRUB güncelle ---
+run_in_chroot "update-grub 2>/dev/null || grub-mkconfig -o /boot/grub/grub.cfg 2>/dev/null || true"
 
-cat > "$S/disk.html" << 'SLIDE3'
-<!DOCTYPE html><html lang="tr"><head><meta charset="UTF-8"><style>
-*{margin:0;padding:0;box-sizing:border-box}
-body{background:#fff;color:#1d1d1f;text-align:center;font-family:-apple-system,sans-serif;padding:40px}
-h2{font-size:18px;font-weight:600;margin-bottom:20px}
-.disk{background:rgba(0,0,0,.03);border:1.5px solid rgba(0,0,0,.08);border-radius:10px;padding:16px;margin:10px auto;max-width:400px;text-align:left;display:flex;align-items:center;gap:12px}
-.disk.sel{border-color:#0071e3;background:rgba(0,113,227,.08)}
-.icon{width:32px;height:32px;background:#86868b;border-radius:6px;flex-shrink:0}
-.dname{font-weight:500;font-size:15px}.ddetail{color:#86868b;font-size:12px}
-</style></head><body><h2>Kurulum Diski Seçin</h2>
-<div class="disk sel"><div class="icon"></div><div><div class="dname">Darwin HD</div><div class="ddetail">APFS · 476 GB kullanılabilir</div></div></div>
-<div class="disk"><div class="icon"></div><div><div class="dname">Harici SSD</div><div class="ddetail">exFAT · 210 GB kullanılabilir</div></div></div>
-</body></html>
-SLIDE3
+# --- 16. İlk açılış sihirbazını kapat ---
+run_in_chroot "[ -f /etc/xdg/autostart/gnome-initial-setup-first-login.desktop ] && echo 'X-GNOME-Autostart-enabled=false' >> /etc/xdg/autostart/gnome-initial-setup-first-login.desktop 2>/dev/null || true"
 
-cat > "$S/progress.html" << 'SLIDE4'
-<!DOCTYPE html><html lang="tr"><head><meta charset="UTF-8"><style>
-*{margin:0;padding:0;box-sizing:border-box}
-body{background:#fff;color:#1d1d1f;text-align:center;font-family:-apple-system,sans-serif;padding:40px}
-h2{font-size:18px;font-weight:600;margin-bottom:20px}
-.bar{width:300px;height:6px;background:rgba(0,0,0,.08);border-radius:3px;margin:20px auto;overflow:hidden}
-.fill{height:100%;background:linear-gradient(90deg,#0071e3,#5e5ce6);border-radius:3px;width:45%;animation:fill 3s infinite}
-@keyframes fill{0%{width:10%}50%{width:70%}100%{width:95%}}
-.steps{display:flex;justify-content:space-between;max-width:400px;margin:20px auto;font-size:11px;color:#86868b}
-.sdone{color:#34c759}.scurr{color:#0071e3}.time{color:#86868b;font-size:13px;margin-top:8px}
-</style></head><body><h2>Kurulum Devam Ediyor</h2><div class="bar"><div class="fill"></div></div>
-<div class="time">Kalan süre: ~22 dk</div><div class="steps">
-<span class="sdone">✓ Hazırlık</span><span class="scurr">⟳ Kopyalama</span><span>Kurulum</span><span>Tamamlama</span>
-</div></body></html>
-SLIDE4
+log "TÜM MANUEL DEĞİŞİKLİKLER TAMAMLANDI!"
 
-cat > "$S/complete.html" << 'SLIDE5'
-<!DOCTYPE html><html lang="tr"><head><meta charset="UTF-8">
-<link href="https://fonts.googleapis.com/css2?family=Pacifico&display=swap" rel="stylesheet"><style>
-*{margin:0;padding:0;box-sizing:border-box}
-body{background:#fff;text-align:center;font-family:-apple-system,sans-serif;padding:40px}
-.hello{font-family:'Pacifico',cursive;font-size:60px;display:flex;justify-content:center;gap:4px;margin-bottom:20px}
-.h{color:#8B5CF6}.e{color:#EC4899}.l1{color:#EF4444}.l2{color:#F97316}
-.o{background:linear-gradient(90deg,#FBBF24,#F59E0B,#10B981);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
-.title{font-size:18px;font-weight:600;color:#1d1d1f;margin-bottom:6px}
-.subtitle{font-size:13px;color:#86868b}.countdown{font-size:48px;font-weight:300;color:#1d1d1f;margin:20px 0}
-</style></head><body>
-<div class="hello"><span class="h">h</span><span class="e">e</span><span class="l1">l</span><span class="l2">l</span><span class="o">o</span></div>
-<div class="title">Kurulum Tamamlandı!</div><div class="subtitle">hello os başarıyla yüklendi</div>
-<div class="countdown">10</div><div class="subtitle">saniye içinde yeniden başlatılacak...</div>
-</body></html>
-SLIDE5
-
-# --- 14. Temizlik ---
-apt clean 2>/dev/null || true
-rm -rf /tmp/* /var/cache/apt/*
-
-# --- 15. İlk açılış sihirbazı ---
-[ -f /etc/xdg/autostart/gnome-initial-setup-first-login.desktop ] && \
-    echo "X-GNOME-Autostart-enabled=false" >> /etc/xdg/autostart/gnome-initial-setup-first-login.desktop 2>/dev/null || true
-
-# --- 16. GRUB güncelle ---
-update-grub 2>/dev/null || grub-mkconfig -o /boot/grub/grub.cfg 2>/dev/null || true
+# ── ADIM 3: Değişiklikleri Kontrol Et ──
+info "Değişiklikler kontrol ediliyor..."
 
 echo ""
-echo "╔══════════════════════════════════════╗"
-echo "║   Özelleştirmeler tamamlandı!       ║"
-echo "║   Plymouth + Casper güncellendi      ║"
-echo "╚══════════════════════════════════════╝"
-FULLHOOK
+echo "=== Plymouth hello klasörü ==="
+ls -la "$CHROOT_DIR/usr/share/plymouth/themes/hello/" 2>/dev/null || echo "YOK!"
 
-chmod +x config/hooks/normal/1000-hello-customization.hook.chroot
-log "Hook hazır"
+echo ""
+echo "=== Plymouth ubuntu-logo klasörü (SİLİNMİŞ OLMALI) ==="
+ls -la "$CHROOT_DIR/usr/share/plymouth/themes/ubuntu-logo/" 2>/dev/null || echo "ubuntu-logo YOK (başarılı!)"
 
-# ── Live‑build çalıştır ──
-info "ISO içeriği oluşturuluyor (20‑40 dk)..."
-sudo lb build 2>&1 | tee /tmp/build-hello.log
-log "Live‑build tamamlandı"
+echo ""
+echo "=== Sistem adı ==="
+cat "$CHROOT_DIR/etc/os-release"
 
-# ── ISO’yu bul ──
+echo ""
+echo "=== GRUB config ==="
+cat "$CHROOT_DIR/etc/default/grub.d/99-hello.cfg" 2>/dev/null || echo "YOK"
+
+echo ""
+echo "=== Slayt ==="
+head -3 "$CHROOT_DIR/usr/share/ubiquity-slideshow/slides/l10n/tr/welcome.html" 2>/dev/null || echo "YOK"
+
+# ── ADIM 4: ISO'yu Oluştur ──
+info "ISO oluşturuluyor..."
+sudo lb binary 2>&1 | tee /tmp/binary.log
+log "Binary tamamlandı"
+
+# ── ADIM 5: Boot dosyalarını ekle ──
+info "Boot dosyaları ekleniyor..."
 BINARY_ISO="$WORK/live-image-amd64.iso"
 [ ! -f "$BINARY_ISO" ] && BINARY_ISO="$WORK/chroot/binary.hybrid.iso"
-[ ! -f "$BINARY_ISO" ] && err "Live‑build ISO'su bulunamadı!"
+[ ! -f "$BINARY_ISO" ] && err "Binary ISO bulunamadı!"
 
-# ── Boot dosyalarını ekle ──
-info "Boot dosyaları (syslinux) ekleniyor..."
-TMPISO="/tmp/hello-iso"
+TMPISO="/tmp/hello-final-iso"
 rm -rf "$TMPISO"
 mkdir -p "$TMPISO"
 7z x "$BINARY_ISO" -o"$TMPISO" >/dev/null
 
+# Syslinux indir
 SYSLINUX_URL="https://mirrors.edge.kernel.org/pub/linux/utils/boot/syslinux/syslinux-6.03.tar.gz"
 SYSLINUX_DIR="/tmp/syslinux-6.03"
 if [ ! -d "$SYSLINUX_DIR" ]; then
@@ -581,7 +496,6 @@ cp "$SYSLINUX_DIR/bios/mbr/isohdpfx.bin" /tmp/isohdpfx.bin
 
 KERNEL=$(ls "$TMPISO/casper"/vmlinuz-* 2>/dev/null | head -1 | xargs basename)
 INITRD=$(ls "$TMPISO/casper"/initrd.img-* 2>/dev/null | head -1 | xargs basename)
-[ -z "$KERNEL" ] && err "Kernel bulunamadı!"
 
 cat > "$TMPISO/isolinux/isolinux.cfg" << EOF
 UI menu.c32
@@ -620,9 +534,10 @@ menuentry "hello os - Install" {
 }
 EOF
 
+# ── ADIM 6: Final ISO ──
 FINAL_ISO="/workspaces/Hello-os/hello-os-1.0-amd64.iso"
 MBR="/tmp/isohdpfx.bin"
-info "Bootable ISO oluşturuluyor..."
+info "Final ISO oluşturuluyor..."
 cd "$TMPISO"
 xorriso -as mkisofs \
     -isohybrid-mbr "$MBR" \
@@ -635,14 +550,19 @@ xorriso -as mkisofs \
     -o "$FINAL_ISO" \
     .
 
-log "Son ISO: $FINAL_ISO"
+log "SON ISO: $FINAL_ISO"
 ls -lh "$FINAL_ISO"
 
 rm -rf "$TMPISO"
 
 echo ""
-echo -e "${G}╔══════════════════════════════════════╗${N}"
-echo -e "${G}║   ISO HAZIR!                         ║${N}"
+echo -e "${G}╔══════════════════════════════════════════╗${N}"
+echo -e "${G}║                                          ║${N}"
+echo -e "${G}║   🎉 ISO HAZIR! 🎉                      ║${N}"
+echo -e "${G}║                                          ║${N}"
 echo -e "${G}║   $FINAL_ISO${N}"
-echo -e "${G}║   Sağ tık → Download                 ║${N}"
-echo -e "${G}╚══════════════════════════════════════╝${N}"
+echo -e "${G}║   Boyut: $(du -h "$FINAL_ISO" | cut -f1)                          ║${N}"
+echo -e "${G}║                                          ║${N}"
+echo -e "${G}║   Sağ tık → Download ile indirebilirsin  ║${N}"
+echo -e "${G}║                                          ║${N}"
+echo -e "${G}╚══════════════════════════════════════════╝${N}"
