@@ -1,16 +1,16 @@
 #!/bin/bash
 # ╔══════════════════════════════════════════════════════════════════╗
-# ║   hello os 1.0 – Tam Loglu ISO Builder                         ║
-# ║   Ubuntu 24.04 Noble – GitHub Codespaces                       ║
+# ║   hello os 1.0 – Düzeltilmiş ISO Builder                       ║
+# ║   Font sorunu çözüldü + Tam loglama                            ║
 # ╚══════════════════════════════════════════════════════════════════╝
 
 set -e
 G='\033[0;32m' B='\033[0;34m' R='\033[0;31m' Y='\033[1;33m' N='\033[0m'
 
-# Log dizini
 LOG_DIR="/tmp/hello-os-logs"
 mkdir -p "$LOG_DIR"
 LOG_FILE="$LOG_DIR/build-$(date +%Y%m%d-%H%M%S).log"
+THEME_LOG="$LOG_DIR/theme-install.log"
 exec 2> >(tee -a "$LOG_FILE" >&2)
 exec 1> >(tee -a "$LOG_FILE")
 
@@ -18,115 +18,6 @@ log()   { echo -e "${G}[✓]${N} $1"; }
 info()  { echo -e "${B}[*]${N} $1"; }
 warn()  { echo -e "${Y}[!]${N} $1"; }
 err()   { echo -e "${R}[X]${N} $1"; exit 1; }
-
-clear
-echo -e "${B}"
-echo "╔══════════════════════════════════════════╗"
-echo "║   hello os 1.0 – Tam Loglu Build        ║"
-echo "╚══════════════════════════════════════════╝"
-echo -e "${N}"
-echo "Log dosyası: $LOG_FILE"
-echo ""
-
-# ── Disk kontrolü ──
-DISK_FREE=$(df -BG /tmp | awk 'NR==2{print $4}' | sed 's/G//')
-info "Disk: ${DISK_FREE} GB"
-[ "$DISK_FREE" -lt 15 ] && err "En az 15 GB boş alan gerekli!"
-
-# ── Bağımlılıklar ──
-info "Paketler kuruluyor..."
-sudo apt update -qq 2>&1 | tee -a "$LOG_FILE"
-sudo apt install -y -qq \
-    live-build live-config live-boot live-manual debian-archive-keyring \
-    isolinux xorriso p7zip-full wget rsync \
-    grub-efi-amd64-bin grub-pc-bin grub2-common 2>&1 | tee -a "$LOG_FILE"
-log "Paketler hazır"
-
-# ── Syslinux ──
-info "Syslinux indiriliyor..."
-SYSLINUX_DIR="/tmp/syslinux-6.03"
-if [ ! -f "$SYSLINUX_DIR/bios/core/isolinux.bin" ]; then
-    rm -rf "$SYSLINUX_DIR" /tmp/syslinux.tar.gz
-    wget -q --timeout=60 --tries=5 \
-        "https://mirrors.edge.kernel.org/pub/linux/utils/boot/syslinux/syslinux-6.03.tar.gz" \
-        -O /tmp/syslinux.tar.gz 2>&1 | tee -a "$LOG_FILE" || \
-    wget -q --timeout=60 --tries=5 \
-        "https://cdn.kernel.org/pub/linux/utils/boot/syslinux/syslinux-6.03.tar.gz" \
-        -O /tmp/syslinux.tar.gz 2>&1 | tee -a "$LOG_FILE" || \
-    err "Syslinux indirilemedi!"
-    tar -xzf /tmp/syslinux.tar.gz -C /tmp/ 2>&1 | tee -a "$LOG_FILE"
-fi
-log "Syslinux hazır"
-
-# ── Live-build ──
-WORK="/tmp/hello-amd64-build"
-sudo rm -rf "$WORK"
-mkdir -p "$WORK"
-cd "$WORK"
-
-info "Live-build konfigürasyonu..."
-sudo lb config \
-    --architecture amd64 \
-    --distribution noble \
-    --binary-images iso-hybrid \
-    --mode ubuntu \
-    --archive-areas "main restricted universe multiverse" \
-    --parent-archive-areas "main restricted universe multiverse" \
-    --bootappend-live "boot=live components quiet splash plymouth.theme=hello" \
-    --iso-application "hello os 1.0" \
-    --iso-volume "hello os 1.0" \
-    --iso-publisher "hello os Project" \
-    --memtest none \
-    --apt-options "--yes" \
-    --debian-installer false \
-    --bootloader grub-efi \
-    --cache false \
-    --apt-indices false 2>&1 | tee -a "$LOG_FILE"
-log "Konfigürasyon tamam"
-
-mkdir -p config/package-lists
-cat > config/package-lists/hello.list.chroot << 'PKG'
-gnome-session
-gnome-shell
-gnome-terminal
-gnome-control-center
-nautilus
-gdm3
-xorg
-gnome-shell-extensions
-xwayland
-casper
-ubiquity
-ubiquity-frontend-gtk
-ubiquity-slideshow-ubuntu
-network-manager
-git
-wget
-plymouth
-plymouth-themes
-gnome-tweaks
-gnome-themes-extra
-gtk2-engines-murrine
-imagemagick
-python3
-sudo
-locales
-PKG
-
-# Bootstrap + Chroot
-info "Bootstrap başlıyor..."
-sudo lb bootstrap 2>&1 | tee -a "$LOG_FILE"
-log "Bootstrap tamam"
-
-info "Chroot başlıyor..."
-sudo lb chroot 2>&1 | tee -a "$LOG_FILE"
-log "Chroot tamam"
-
-# ═══════════════════════════════════════════════════════════════
-# MANUEL ÖZELLEŞTİRME (HER ADIM LOGLANIR)
-# ═══════════════════════════════════════════════════════════════
-CHROOT_DIR="$WORK/chroot"
-THEME_LOG="$LOG_DIR/theme-install.log"
 
 run_chroot() {
     local cmd="$1"
@@ -141,63 +32,136 @@ run_chroot() {
     fi
 }
 
+clear
+echo -e "${B}"
+echo "╔══════════════════════════════════════════╗"
+echo "║   hello os 1.0 – Düzeltilmiş Build      ║"
+echo "╚══════════════════════════════════════════╝"
+echo -e "${N}"
+echo "Log: $LOG_FILE"
+echo ""
+
+# ── Disk ──
+DISK_FREE=$(df -BG /tmp | awk 'NR==2{print $4}' | sed 's/G//')
+info "Disk: ${DISK_FREE} GB"
+[ "$DISK_FREE" -lt 15 ] && err "En az 15 GB gerekli!"
+
+# ── Bağımlılıklar ──
+info "Paketler kuruluyor..."
+sudo apt update -qq
+sudo apt install -y -qq live-build live-config live-boot live-manual debian-archive-keyring isolinux xorriso p7zip-full wget grub-efi-amd64-bin grub-pc-bin grub2-common
+log "Paketler hazır"
+
+# ── Syslinux ──
+info "Syslinux indiriliyor..."
+SYSLINUX_DIR="/tmp/syslinux-6.03"
+if [ ! -f "$SYSLINUX_DIR/bios/core/isolinux.bin" ]; then
+    rm -rf "$SYSLINUX_DIR" /tmp/syslinux.tar.gz
+    wget -q --timeout=60 --tries=5 "https://mirrors.edge.kernel.org/pub/linux/utils/boot/syslinux/syslinux-6.03.tar.gz" -O /tmp/syslinux.tar.gz || \
+    wget -q --timeout=60 --tries=5 "https://cdn.kernel.org/pub/linux/utils/boot/syslinux/syslinux-6.03.tar.gz" -O /tmp/syslinux.tar.gz || \
+    err "Syslinux indirilemedi!"
+    tar -xzf /tmp/syslinux.tar.gz -C /tmp/
+fi
+log "Syslinux hazır"
+
+# ── Live-build ──
+WORK="/tmp/hello-amd64-build"
+sudo rm -rf "$WORK"
+mkdir -p "$WORK"
+cd "$WORK"
+
+info "Live-build konfigürasyonu..."
+sudo lb config --architecture amd64 --distribution noble --binary-images iso-hybrid --mode ubuntu --archive-areas "main restricted universe multiverse" --parent-archive-areas "main restricted universe multiverse" --bootappend-live "boot=live components quiet splash plymouth.theme=hello" --iso-application "hello os 1.0" --iso-volume "hello os 1.0" --iso-publisher "hello os Project" --memtest none --apt-options "--yes" --debian-installer false --bootloader grub-efi --cache false --apt-indices false
+log "Konfigürasyon tamam"
+
+mkdir -p config/package-lists
+cat > config/package-lists/hello.list.chroot << 'PKG'
+gnome-session gnome-shell gnome-terminal gnome-control-center nautilus gdm3 xorg
+gnome-shell-extensions xwayland casper ubiquity ubiquity-frontend-gtk
+ubiquity-slideshow-ubuntu network-manager git wget curl plymouth plymouth-themes
+gnome-tweaks gnome-themes-extra gtk2-engines-murrine imagemagick python3 sudo locales
+PKG
+
+info "Bootstrap başlıyor..."
+sudo lb bootstrap
+log "Bootstrap tamam"
+
+info "Chroot başlıyor..."
+sudo lb chroot
+log "Chroot tamam"
+
+CHROOT_DIR="$WORK/chroot"
+
+# ═══════════════════════════════════════════════════════════════
+# ÖZELLEŞTİRME
+# ═══════════════════════════════════════════════════════════════
 echo ""
 echo "══════════════════════════════════════════"
-echo "  MANUEL ÖZELLEŞTİRME BAŞLIYOR"
-echo "  Log: $THEME_LOG"
+echo "  MANUEL ÖZELLEŞTİRME"
 echo "══════════════════════════════════════════"
 echo ""
 
 # 1. Locale
-run_chroot "locale-gen tr_TR.UTF-8 en_US.UTF-8" "Locale oluşturuluyor"
-run_chroot "update-locale LANG=tr_TR.UTF-8" "Locale güncelleniyor"
-run_chroot "ln -sf /usr/share/zoneinfo/Europe/Istanbul /etc/localtime" "Zaman dilimi ayarlanıyor"
+run_chroot "locale-gen tr_TR.UTF-8 en_US.UTF-8" "Locale"
+run_chroot "update-locale LANG=tr_TR.UTF-8" "Locale güncelleme"
+run_chroot "ln -sf /usr/share/zoneinfo/Europe/Istanbul /etc/localtime" "Zaman dilimi"
 
-# 2. Pacifico font
-run_chroot "mkdir -p /usr/share/fonts/truetype/pacifico" "Font dizini oluşturuluyor"
-run_chroot "cd /tmp && wget -q 'https://github.com/google/fonts/raw/main/ofl/pacifico/Pacifico-Regular.ttf' -O Pacifico.ttf" "Pacifico font indiriliyor"
-run_chroot "cp /tmp/Pacifico.ttf /usr/share/fonts/truetype/pacifico/ 2>/dev/null && fc-cache -f" "Font sisteme yükleniyor"
-
-# 3. MacTahoe GTK Teması - ADIM ADIM
+# 2. Pacifico font - ÇOKLU KAYNAK
 echo ""
-echo "=== MacTahoe GTK Teması Kurulumu ==="
+echo "=== Pacifico Font (Çoklu Kaynak) ==="
+run_chroot "mkdir -p /usr/share/fonts/truetype/pacifico /usr/local/share/fonts" "Font dizinleri"
 
-# Git clone
+FONT_OK=false
+FONT_SOURCES=(
+    "https://github.com/google/fonts/raw/main/ofl/pacifico/Pacifico-Regular.ttf"
+    "https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/pacifico/Pacifico-Regular.ttf"
+    "https://raw.githubusercontent.com/google/fonts/main/ofl/pacifico/Pacifico-Regular.ttf"
+)
+
+for SRC in "${FONT_SOURCES[@]}"; do
+    echo "  Kaynak: $SRC"
+    if sudo chroot "$CHROOT_DIR" bash -c "cd /tmp && wget -q --timeout=10 '$SRC' -O Pacifico.ttf 2>/dev/null && [ -f Pacifico.ttf ] && [ -s Pacifico.ttf ]"; then
+        FONT_SIZE=$(sudo stat -c%s "$CHROOT_DIR/tmp/Pacifico.ttf" 2>/dev/null || echo 0)
+        echo "  ✓ İndirildi (${FONT_SIZE} byte)"
+        FONT_OK=true
+        break
+    else
+        echo "  ✗ Bu kaynak başarısız"
+    fi
+done
+
+if [ "$FONT_OK" = true ]; then
+    run_chroot "cp /tmp/Pacifico.ttf /usr/share/fonts/truetype/pacifico/ && cp /tmp/Pacifico.ttf /usr/local/share/fonts/ 2>/dev/null && fc-cache -f" "Font yükleniyor"
+    echo "  ✓ Pacifico font hazır"
+else
+    echo "  ⚠ Font indirilemedi, varsayılan font kullanılacak"
+fi
+
+# 3. MacTahoe GTK Teması
+echo ""
+echo "=== MacTahoe GTK Teması ==="
 run_chroot "cd /tmp && rm -rf MacTahoe-gtk-theme" "Eski tema siliniyor"
 
-if run_chroot "cd /tmp && git clone --depth=1 https://github.com/vinceliuice/MacTahoe-gtk-theme.git" "GitHub'dan tema indiriliyor"; then
-    echo "  Git clone başarılı"
+if run_chroot "cd /tmp && git clone --depth=1 https://github.com/vinceliuice/MacTahoe-gtk-theme.git 2>/dev/null" "GitHub klonlanıyor"; then
+    echo "  ✓ Git clone başarılı"
 else
-    echo "  Git clone başarısız, arşiv deneniyor..."
-    run_chroot "cd /tmp && wget -qO- https://github.com/vinceliuice/MacTahoe-gtk-theme/archive/master.tar.gz | tar -xz && mv MacTahoe-gtk-theme-master MacTahoe-gtk-theme" "Arşivden tema çıkarılıyor"
+    run_chroot "cd /tmp && wget -qO- https://github.com/vinceliuice/MacTahoe-gtk-theme/archive/master.tar.gz | tar -xz && mv MacTahoe-gtk-theme-master MacTahoe-gtk-theme" "Arşiv indiriliyor"
 fi
 
-# Tema kontrol
 if sudo test -d "$CHROOT_DIR/tmp/MacTahoe-gtk-theme"; then
-    echo "  ✓ Tema dizini mevcut"
-else
-    echo "  ✗ Tema dizini YOK! Atlanıyor..."
+    run_chroot "cd /tmp/MacTahoe-gtk-theme && chmod +x install.sh && ./install.sh -c dark -i" "install.sh çalıştırılıyor"
+    run_chroot "mkdir -p /usr/share/themes /usr/share/icons" "Sistem tema dizinleri"
+    run_chroot "[ -d /root/.themes ] && cp -r /root/.themes/MacTahoe* /usr/share/themes/ 2>/dev/null; [ -d /home/user/.themes ] && cp -r /home/user/.themes/MacTahoe* /usr/share/themes/ 2>/dev/null" "Temalar kopyalanıyor"
 fi
 
-# Install.sh çalıştır
-run_chroot "cd /tmp/MacTahoe-gtk-theme && chmod +x install.sh && ./install.sh -c dark -i" "install.sh çalıştırılıyor"
-
-# Temaları sistem dizinine kopyala
-run_chroot "mkdir -p /usr/share/themes /usr/share/icons" "Sistem tema dizinleri oluşturuluyor"
-run_chroot "[ -d /root/.themes ] && cp -r /root/.themes/MacTahoe* /usr/share/themes/ 2>/dev/null; [ -d /home/user/.themes ] && cp -r /home/user/.themes/MacTahoe* /usr/share/themes/ 2>/dev/null; echo 'Tema kopyalandı'" "Temalar sistem dizinine kopyalanıyor"
-
-# Tema kurulum kontrolü
-echo ""
 echo "Tema kontrolü:"
-sudo ls -la "$CHROOT_DIR/usr/share/themes/" 2>/dev/null | grep -i mactahoe && echo "  ✓ MacTahoe temaları kuruldu" || echo "  ✗ MacTahoe temaları YOK"
-sudo ls -la "$CHROOT_DIR/root/.themes/" 2>/dev/null | grep -i mactahoe && echo "  ✓ /root/.themes içinde var" || echo "  ✗ /root/.themes içinde YOK"
-sudo ls -la "$CHROOT_DIR/home/user/.themes/" 2>/dev/null | grep -i mactahoe && echo "  ✓ /home/user/.themes içinde var" || echo "  ✗ /home/user/.themes içinde YOK"
+sudo ls "$CHROOT_DIR/usr/share/themes/" 2>/dev/null | grep -i mactahoe && echo "  ✓ MacTahoe kuruldu" || echo "  ✗ MacTahoe YOK"
 
 # 4. Plymouth
 echo ""
 echo "=== Plymouth Boot Animasyonu ==="
 run_chroot "rm -rf /usr/share/plymouth/themes/*" "Eski temalar siliniyor"
-run_chroot "mkdir -p /usr/share/plymouth/themes/hello" "Hello tema dizini oluşturuluyor"
+run_chroot "mkdir -p /usr/share/plymouth/themes/hello" "Hello tema dizini"
 
 sudo tee "$CHROOT_DIR/usr/share/plymouth/themes/hello/hello.plymouth" > /dev/null << 'PLYCONF'
 [Plymouth Theme]
@@ -208,7 +172,6 @@ ModuleName=script
 ImageDir=/usr/share/plymouth/themes/hello
 ScriptFile=/usr/share/plymouth/themes/hello/hello.script
 PLYCONF
-echo "  ✓ hello.plymouth yazıldı"
 
 sudo tee "$CHROOT_DIR/usr/share/plymouth/themes/hello/hello.script" > /dev/null << 'PLYANIM'
 screen_width = Window.GetWidth();
@@ -247,11 +210,10 @@ fun animate() {
 }
 animate();
 PLYANIM
-echo "  ✓ hello.script yazıldı"
 
-run_chroot "plymouth-set-default-theme hello" "Plymouth varsayılan tema ayarlanıyor"
-run_chroot "update-alternatives --install /usr/share/plymouth/themes/default.plymouth default.plymouth /usr/share/plymouth/themes/hello/hello.plymouth 200" "update-alternatives install"
-run_chroot "update-alternatives --set default.plymouth /usr/share/plymouth/themes/hello/hello.plymouth" "update-alternatives set"
+run_chroot "plymouth-set-default-theme hello" "Plymouth varsayılan tema"
+run_chroot "update-alternatives --install /usr/share/plymouth/themes/default.plymouth default.plymouth /usr/share/plymouth/themes/hello/hello.plymouth 200" "update-alternatives"
+run_chroot "update-alternatives --set default.plymouth /usr/share/plymouth/themes/hello/hello.plymouth" "varsayılan set"
 
 sudo mkdir -p "$CHROOT_DIR/etc/plymouth"
 sudo tee "$CHROOT_DIR/etc/plymouth/plymouthd.conf" > /dev/null << 'PLYDCONF'
@@ -259,11 +221,9 @@ sudo tee "$CHROOT_DIR/etc/plymouth/plymouthd.conf" > /dev/null << 'PLYDCONF'
 Theme=hello
 ShowDelay=0
 PLYDCONF
-echo "  ✓ plymouthd.conf yazıldı"
+echo "  ✓ Plymouth hazır"
 
 # 5. Sistem markalaması
-echo ""
-echo "=== Sistem Markalaması ==="
 sudo tee "$CHROOT_DIR/etc/os-release" > /dev/null << 'OSRELEASE'
 PRETTY_NAME="hello os"
 NAME="hello os"
@@ -273,8 +233,7 @@ ID=hello-os
 ID_LIKE=ubuntu
 HOME_URL="https://hello-os.org"
 OSRELEASE
-echo "  ✓ os-release yazıldı"
-run_chroot "echo 'hello os 1.0' > /etc/hello-release && echo 'hello-os' > /etc/hostname" "hostname ve release"
+run_chroot "echo 'hello os 1.0' > /etc/hello-release && echo 'hello-os' > /etc/hostname" "hostname"
 
 # 6. GTK
 sudo mkdir -p "$CHROOT_DIR/etc/gtk-3.0"
@@ -283,9 +242,7 @@ sudo tee "$CHROOT_DIR/etc/gtk-3.0/settings.ini" > /dev/null << 'GTKSET'
 gtk-theme-name=MacTahoe
 gtk-icon-theme-name=MacTahoe
 gtk-font-name=Pacifico 11
-gtk-cursor-theme-name=MacTahoe
 GTKSET
-echo "  ✓ GTK ayarları yazıldı"
 
 # 7. GNOME
 sudo mkdir -p "$CHROOT_DIR/etc/dconf/db/local.d"
@@ -294,7 +251,6 @@ sudo tee "$CHROOT_DIR/etc/dconf/db/local.d/01-hello" > /dev/null << 'GNOME'
 gtk-theme='MacTahoe'
 icon-theme='MacTahoe'
 font-name='Pacifico 11'
-cursor-theme='MacTahoe'
 [org/gnome/desktop/wm/preferences]
 theme='MacTahoe'
 [org/gnome/shell/extensions/user-theme]
@@ -303,58 +259,38 @@ name='MacTahoe'
 picture-uri='file:///usr/share/backgrounds/hello-bg.png'
 primary-color='#000000'
 GNOME
-echo "  ✓ GNOME ayarları yazıldı"
 
 # 8. Duvar kağıdı
-run_chroot "mkdir -p /usr/share/backgrounds" "Duvar kağıdı dizini"
-run_chroot "convert -size 1920x1080 xc:'#000000' /usr/share/backgrounds/hello-bg.png 2>/dev/null || python3 -c \"from PIL import Image;Image.new('RGB',(1920,1080),'black').save('/usr/share/backgrounds/hello-bg.png')\" 2>/dev/null || touch /usr/share/backgrounds/hello-bg.png" "Siyah duvar kağıdı"
+run_chroot "mkdir -p /usr/share/backgrounds" "Duvar kağıdı"
+run_chroot "convert -size 1920x1080 xc:'#000000' /usr/share/backgrounds/hello-bg.png 2>/dev/null || python3 -c \"from PIL import Image;Image.new('RGB',(1920,1080),'black').save('/usr/share/backgrounds/hello-bg.png')\" 2>/dev/null || touch /usr/share/backgrounds/hello-bg.png" "Siyah arkaplan"
 
 # 9. GRUB + Monterey
-echo ""
-echo "=== GRUB + Monterey Teması ==="
-run_chroot "mkdir -p /etc/default/grub.d" "GRUB config dizini"
-run_chroot "cd /tmp && rm -rf monterey-grub-theme && git clone --depth=1 https://github.com/sandesh236/monterey-grub-theme.git 2>/dev/null" "Monterey teması indiriliyor"
-
+run_chroot "mkdir -p /etc/default/grub.d" "GRUB config"
+run_chroot "cd /tmp && rm -rf monterey-grub-theme && git clone --depth=1 https://github.com/sandesh236/monterey-grub-theme.git 2>/dev/null" "Monterey indir"
 if sudo test -d "$CHROOT_DIR/tmp/monterey-grub-theme"; then
-    run_chroot "cd /tmp/monterey-grub-theme && if [ -f install.sh ]; then chmod +x install.sh && ./install.sh; else mkdir -p /boot/grub/themes/monterey && cp -r . /boot/grub/themes/monterey/; fi" "Monterey teması kuruluyor"
+    run_chroot "cd /tmp/monterey-grub-theme && if [ -f install.sh ]; then chmod +x install.sh && ./install.sh; else mkdir -p /boot/grub/themes/monterey && cp -r . /boot/grub/themes/monterey/; fi" "Monterey kur"
 fi
 
 sudo tee "$CHROOT_DIR/etc/default/grub.d/99-hello.cfg" > /dev/null << 'GRUB'
 GRUB_DISTRIBUTOR="hello os"
 GRUB_TIMEOUT=5
-GRUB_TIMEOUT_STYLE=menu
 GRUB_CMDLINE_LINUX_DEFAULT="quiet splash plymouth.theme=hello"
 GRUB_GFXMODE=1920x1080
 GRUB_THEME="/boot/grub/themes/monterey/theme.txt"
 GRUB
-echo "  ✓ GRUB config yazıldı"
-
-# Monterey teması kontrol
-sudo ls -la "$CHROOT_DIR/boot/grub/themes/" 2>/dev/null && echo "  ✓ GRUB tema dizini var" || echo "  ✗ GRUB tema dizini YOK"
 
 # 10. Kullanıcı
-echo ""
-echo "=== Kullanıcı Hesabı ==="
-run_chroot "useradd -m -s /bin/bash -G sudo,adm,cdrom,dip,plugdev,lpadmin,netdev user 2>/dev/null || true" "Kullanıcı oluşturuluyor"
-run_chroot "echo 'user:123456' | chpasswd" "Şifre atanıyor"
-
-sudo mkdir -p "$CHROOT_DIR/etc/gdm3" "$CHROOT_DIR/etc/lightdm"
+run_chroot "useradd -m -s /bin/bash -G sudo,adm,cdrom,dip,plugdev,lpadmin,netdev user 2>/dev/null || true" "Kullanıcı"
+run_chroot "echo 'user:123456' | chpasswd" "Şifre"
+sudo mkdir -p "$CHROOT_DIR/etc/gdm3"
 sudo tee "$CHROOT_DIR/etc/gdm3/custom.conf" > /dev/null << 'GDM'
 [daemon]
 AutomaticLoginEnable=true
 AutomaticLogin=user
 WaylandEnable=true
 GDM
-sudo tee "$CHROOT_DIR/etc/lightdm/lightdm.conf" > /dev/null << 'LIGHTDM'
-[Seat:*]
-autologin-user=user
-autologin-user-timeout=0
-LIGHTDM
-echo "  ✓ Kullanıcı: user / 123456"
 
 # 11. Ubiquity CSS
-echo ""
-echo "=== Kurulum Arayüzü CSS ==="
 sudo mkdir -p "$CHROOT_DIR/usr/share/ubiquity/gtk"
 sudo tee "$CHROOT_DIR/usr/share/ubiquity/gtk/ubiquity.css" > /dev/null << 'CSS'
 @define-color bg #ffffff;@define-color fg #1d1d1f;@define-color ac #0071e3;@define-color sc #86868b;@define-color bd rgba(0,0,0,0.08);
@@ -363,7 +299,6 @@ window,.ubiquity,box{background:@bg}
 .title{font-size:18px;font-weight:600;color:@fg}
 .subtitle{font-size:13px;color:@sc}
 button.suggested-action{background:@ac;color:#fff;border-radius:8px;padding:10px 28px;font-weight:500;box-shadow:0 2px 8px rgba(0,113,227,0.2)}
-button.suggested-action:hover{background:#0077ed}
 progressbar{background:rgba(0,0,0,0.08);border-radius:3px;min-height:6px}
 progressbar progress{background:linear-gradient(90deg,#0071e3,#5e5ce6);border-radius:3px}
 entry{background:rgba(0,0,0,0.03);border:1.5px solid @bd;border-radius:8px;padding:10px 14px;color:@fg}
@@ -371,11 +306,8 @@ entry:focus{border-color:@ac;box-shadow:0 0 0 3px rgba(0,113,227,0.1)}
 switch{background:rgba(0,0,0,0.15);border-radius:12px}
 switch:checked{background:@ac}
 CSS
-echo "  ✓ Ubiquity CSS yazıldı"
 
 # 12. Slayt
-echo ""
-echo "=== Kurulum Slaytı ==="
 sudo mkdir -p "$CHROOT_DIR/usr/share/ubiquity-slideshow/slides/l10n/tr"
 sudo tee "$CHROOT_DIR/usr/share/ubiquity-slideshow/slides/l10n/tr/welcome.html" > /dev/null << 'SLIDE'
 <!DOCTYPE html><html><head><meta charset="UTF-8"><style>
@@ -389,18 +321,15 @@ body{background:#fff;text-align:center;font-family:sans-serif;padding:60px}
 <div class="title">hello os'a Hoş Geldiniz</div><div class="subtitle">Sürüm 1.0</div>
 </body></html>
 SLIDE
-echo "  ✓ Slayt yazıldı"
 
 # 13. Initramfs + GRUB güncelle
-echo ""
-echo "=== Initramfs ve GRUB Güncelleme ==="
-run_chroot "update-initramfs -u" "Initramfs güncelleniyor"
-run_chroot "update-grub" "GRUB güncelleniyor"
+run_chroot "update-initramfs -u" "Initramfs"
+run_chroot "update-grub" "GRUB"
 
 # 14. Temizlik
 run_chroot "apt clean; rm -rf /tmp/* /var/cache/apt/*" "Temizlik"
 
-log "TÜM ÖZELLEŞTİRMELER TAMAMLANDI"
+log "Tüm özelleştirmeler tamamlandı"
 
 # ═══════════════════════════════════════════════════════════════
 # SON KONTROL
@@ -409,41 +338,31 @@ echo ""
 echo "══════════════════════════════════════════"
 echo "  SON KONTROL"
 echo "══════════════════════════════════════════"
-echo ""
 
-check_item() {
-    local path="$1"
-    local name="$2"
-    if sudo test -f "$CHROOT_DIR/$path" || sudo test -d "$CHROOT_DIR/$path"; then
-        echo -e "  ${G}✓${N} $name"
+check() {
+    if sudo test -f "$CHROOT_DIR/$1" || sudo test -d "$CHROOT_DIR/$1"; then
+        echo -e "  ${G}✓${N} $2"
     else
-        echo -e "  ${R}✗${N} $name - EKSİK!"
+        echo -e "  ${R}✗${N} $2 - EKSİK!"
     fi
 }
 
-check_item "usr/share/plymouth/themes/hello/hello.plymouth" "Plymouth hello.plymouth"
-check_item "usr/share/plymouth/themes/hello/hello.script" "Plymouth hello.script"
-check_item "etc/plymouth/plymouthd.conf" "Plymouth yapılandırması"
-check_item "usr/share/themes" "Tema dizini (MacTahoe)"
-check_item "etc/os-release" "Sistem adı (os-release)"
-check_item "etc/default/grub.d/99-hello.cfg" "GRUB yapılandırması"
-check_item "boot/grub/themes/monterey" "Monterey GRUB teması"
-check_item "usr/share/ubiquity/gtk/ubiquity.css" "Ubiquity CSS"
-check_item "usr/share/ubiquity-slideshow/slides/l10n/tr/welcome.html" "Kurulum slaytı"
-check_item "etc/gdm3/custom.conf" "GDM otomatik giriş"
-check_item "home/user" "Kullanıcı dizini"
-
-echo ""
-echo "Log dosyaları:"
-echo "  Ana log: $LOG_FILE"
-echo "  Tema log: $THEME_LOG"
-echo ""
+check "usr/share/plymouth/themes/hello/hello.plymouth" "Plymouth theme"
+check "usr/share/plymouth/themes/hello/hello.script" "Plymouth script"
+check "etc/plymouth/plymouthd.conf" "Plymouth conf"
+check "usr/share/fonts/truetype/pacifico/Pacifico.ttf" "Pacifico font"
+check "etc/os-release" "Sistem adı"
+check "etc/default/grub.d/99-hello.cfg" "GRUB config"
+check "usr/share/ubiquity/gtk/ubiquity.css" "Ubiquity CSS"
+check "usr/share/ubiquity-slideshow/slides/l10n/tr/welcome.html" "Slayt"
+check "etc/gdm3/custom.conf" "GDM autologin"
+check "home/user" "Kullanıcı"
 
 # ═══════════════════════════════════════════════════════════════
 # ISO OLUŞTUR
 # ═══════════════════════════════════════════════════════════════
 info "Binary ISO oluşturuluyor..."
-sudo lb binary 2>&1 | tee -a "$LOG_FILE"
+sudo lb binary
 log "Binary tamam"
 
 BINARY_ISO="$WORK/live-image-amd64.iso"
@@ -495,27 +414,16 @@ EOF
 
 FINAL_ISO="/workspaces/Hello-os/hello-os-1.0-amd64.iso"
 cd "$TMPISO"
-xorriso -as mkisofs \
-    -isohybrid-mbr /tmp/isohdpfx.bin \
-    -b isolinux/isolinux.bin -c isolinux/boot.cat \
-    -no-emul-boot -boot-load-size 4 -boot-info-table \
-    -eltorito-alt-boot -e boot/grub/efi.img -no-emul-boot \
-    -isohybrid-gpt-basdat -r -V "hello os 1.0" \
-    -o "$FINAL_ISO" .
+xorriso -as mkisofs -isohybrid-mbr /tmp/isohdpfx.bin -b isolinux/isolinux.bin -c isolinux/boot.cat -no-emul-boot -boot-load-size 4 -boot-info-table -eltorito-alt-boot -e boot/grub/efi.img -no-emul-boot -isohybrid-gpt-basdat -r -V "hello os 1.0" -o "$FINAL_ISO" .
 
 rm -rf "$TMPISO"
 
 echo ""
 echo -e "${G}╔══════════════════════════════════════════╗${N}"
-echo -e "${G}║                                          ║${N}"
 echo -e "${G}║   🎉 ISO HAZIR! 🎉                      ║${N}"
-echo -e "${G}║                                          ║${N}"
 echo -e "${G}║   $FINAL_ISO${N}"
 echo -e "${G}║   Boyut: $(du -h "$FINAL_ISO" | cut -f1)                          ║${N}"
-echo -e "${G}║                                          ║${N}"
 echo -e "${G}║   Log: $LOG_FILE${N}"
 echo -e "${G}║   Tema Log: $THEME_LOG${N}"
-echo -e "${G}║                                          ║${N}"
-echo -e "${G}║   Sağ tık → Download ile indirebilirsin  ║${N}"
-echo -e "${G}║                                          ║${N}"
+echo -e "${G}║   Sağ tık → Download                     ║${N}"
 echo -e "${G}╚══════════════════════════════════════════╝${N}"
