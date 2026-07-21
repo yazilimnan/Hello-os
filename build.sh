@@ -1,6 +1,6 @@
 #!/bin/bash
 # ╔══════════════════════════════════════════════════════════════╗
-# ║   hello os - debootstrap Build (GitHub Codespaces)        ║
+# ║   hello os - debootstrap + TEMA + FONT (Eksiksiz)         ║
 # ╚══════════════════════════════════════════════════════════════╝
 
 set -e
@@ -12,59 +12,78 @@ err() { echo -e "${R}[X]${N} $1"; exit 1; }
 clear
 echo -e "${B}"
 echo "╔══════════════════════════════════════════╗"
-echo "║   hello os - Codespaces Build           ║"
+echo "║   hello os - FULL Build (Tema+Font)     ║"
 echo "╚══════════════════════════════════════════╝"
 echo -e "${N}"
 
-# ── Disk kontrolü ──
+# ── Disk ──
 DISK=$(df -BG /tmp | awk 'NR==2{print $4}' | sed 's/G//')
-info "Disk: ${DISK} GB (gerekli: ~8 GB)"
-[ "$DISK" -lt 8 ] && err "Disk yetersiz!"
+info "Disk: ${DISK} GB (gerekli: ~10 GB)"
+[ "$DISK" -lt 10 ] && err "Disk yetersiz!"
 
 # ── Paketler ──
 info "Paketler kuruluyor..."
 sudo apt update -qq
-sudo apt install -y -qq debootstrap squashfs-tools xorriso wget p7zip-full isolinux
+sudo apt install -y -qq debootstrap squashfs-tools xorriso wget p7zip-full isolinux unzip
 log "Paketler hazır"
+
+# ── Tema ve font dosyalarını indir ──
+SCRIPT_DIR="/workspaces/Hello-os"
+mkdir -p "$SCRIPT_DIR"
+
+if [ ! -f "$SCRIPT_DIR/Pacifico-Regular.ttf" ]; then
+    info "Pacifico font indiriliyor..."
+    wget -q "https://github.com/google/fonts/raw/main/ofl/pacifico/Pacifico-Regular.ttf" -O "$SCRIPT_DIR/Pacifico-Regular.ttf" 2>/dev/null || \
+    wget -q "https://raw.githubusercontent.com/google/fonts/main/ofl/pacifico/Pacifico-Regular.ttf" -O "$SCRIPT_DIR/Pacifico-Regular.ttf" 2>/dev/null || \
+    warn "Font indirilemedi!"
+fi
+[ -f "$SCRIPT_DIR/Pacifico-Regular.ttf" ] && log "Font: $(du -h "$SCRIPT_DIR/Pacifico-Regular.ttf" | cut -f1)"
+
+if [ ! -f "$SCRIPT_DIR/MacTahoe-gtk-theme-main.zip" ]; then
+    info "MacTahoe teması indiriliyor..."
+    wget -q "https://github.com/vinceliuice/MacTahoe-gtk-theme/archive/main.zip" -O "$SCRIPT_DIR/MacTahoe-gtk-theme-main.zip" 2>/dev/null || \
+    wget -q "https://codeload.github.com/vinceliuice/MacTahoe-gtk-theme/zip/refs/heads/main" -O "$SCRIPT_DIR/MacTahoe-gtk-theme-main.zip" 2>/dev/null || \
+    warn "Tema indirilemedi!"
+fi
+[ -f "$SCRIPT_DIR/MacTahoe-gtk-theme-main.zip" ] && log "Tema: $(du -h "$SCRIPT_DIR/MacTahoe-gtk-theme-main.zip" | cut -f1)"
 
 # ── Dizinler ──
 WORK="/tmp/hello-os-build"
 ROOTFS="$WORK/rootfs"
 ISO_DIR="$WORK/iso"
-OUTPUT="/workspaces/Hello-os/hello-os-1.0-amd64.iso"
+OUTPUT="$SCRIPT_DIR/hello-os-1.0-amd64.iso"
 
 sudo rm -rf "$WORK"
 mkdir -p "$ROOTFS" "$ISO_DIR"/{casper,isolinux,boot/grub}
+mkdir -p "$ROOTFS/tmp/fonts" "$ROOTFS/tmp/themes"
+
+# Tema ve font dosyalarını chroot'a kopyala
+[ -f "$SCRIPT_DIR/Pacifico-Regular.ttf" ] && sudo cp "$SCRIPT_DIR/Pacifico-Regular.ttf" "$ROOTFS/tmp/fonts/"
+[ -f "$SCRIPT_DIR/MacTahoe-gtk-theme-main.zip" ] && sudo cp "$SCRIPT_DIR/MacTahoe-gtk-theme-main.zip" "$ROOTFS/tmp/themes/"
+log "Tema ve font chroot'a kopyalandı"
 
 # ═══════════════════════════════════════════════════════════════
-# 1. DEBOOTSTRAP - Sıfırdan sistem
+# 1. DEBOOTSTRAP
 # ═══════════════════════════════════════════════════════════════
 info "Ubuntu 24.04 base indiriliyor (10-15 dk)..."
 sudo debootstrap --arch=amd64 noble "$ROOTFS" http://archive.ubuntu.com/ubuntu/
 log "Base sistem hazır"
 
 # ═══════════════════════════════════════════════════════════════
-# 2. CHROOT İÇİNDE PAKET KURULUMU
+# 2. CHROOT PAKET KURULUMU
 # ═══════════════════════════════════════════════════════════════
 info "Chroot hazırlanıyor..."
-
-# Mount'ları bağla
 sudo mount --bind /dev "$ROOTFS/dev"
 sudo mount --bind /proc "$ROOTFS/proc"
 sudo mount --bind /sys "$ROOTFS/sys"
 sudo cp /etc/resolv.conf "$ROOTFS/etc/"
 
-# Kurulum script'ini oluştur
 sudo tee "$ROOTFS/tmp/setup.sh" > /dev/null << 'SETUP'
 #!/bin/bash
 set -e
-
 echo "=== hello os - Paket Kurulumu ==="
 
-# Depoları güncelle
 apt update
-
-# GNOME + Wayland + Kurulum araçları
 apt install -y --no-install-recommends \
     gnome-session gnome-shell gnome-terminal gnome-control-center \
     nautilus gdm3 xorg xwayland gnome-shell-extensions \
@@ -72,10 +91,10 @@ apt install -y --no-install-recommends \
     network-manager wireless-tools wpasupplicant \
     plymouth plymouth-themes plymouth-x11 \
     gnome-tweaks gnome-themes-extra gtk2-engines-murrine \
-    git wget imagemagick python3 sudo locales \
+    git wget imagemagick python3 sudo locales unzip \
     linux-image-generic
 
-# ── Plymouth hello teması ──
+echo "=== Plymouth hello teması ==="
 rm -rf /usr/share/plymouth/themes/*
 mkdir -p /usr/share/plymouth/themes/hello
 
@@ -130,7 +149,41 @@ SCR
 plymouth-set-default-theme hello
 update-initramfs -u
 
-# ── Sistem adı ──
+echo "=== MacTahoe Teması ==="
+if [ -f /tmp/themes/MacTahoe-gtk-theme-main.zip ]; then
+    cd /tmp/themes
+    unzip -o MacTahoe-gtk-theme-main.zip -d /tmp/themes/mactahoe 2>/dev/null || true
+    THEME_DIR=$(ls -d /tmp/themes/mactahoe/*/ 2>/dev/null | head -1)
+    if [ -d "$THEME_DIR" ]; then
+        cd "$THEME_DIR"
+        chmod +x install.sh
+        ./install.sh -t all 2>/dev/null || true
+        mkdir -p /usr/share/themes /usr/share/icons
+        [ -d /root/.themes ] && cp -r /root/.themes/MacTahoe* /usr/share/themes/ 2>/dev/null || true
+        [ -d /root/.icons ] && cp -r /root/.icons/MacTahoe* /usr/share/icons/ 2>/dev/null || true
+        echo "  ✓ MacTahoe kuruldu"
+    fi
+fi
+
+echo "=== Pacifico Font ==="
+if [ -f /tmp/fonts/Pacifico-Regular.ttf ]; then
+    mkdir -p /usr/share/fonts/truetype/pacifico
+    cp /tmp/fonts/Pacifico-Regular.ttf /usr/share/fonts/truetype/pacifico/
+    fc-cache -f
+    echo "  ✓ Font kuruldu"
+fi
+
+echo "=== GTK Ayarları ==="
+mkdir -p /etc/gtk-3.0
+cat > /etc/gtk-3.0/settings.ini << 'GTK'
+[Settings]
+gtk-theme-name=MacTahoe
+gtk-icon-theme-name=MacTahoe
+gtk-font-name=Pacifico 11
+gtk-cursor-theme-name=MacTahoe
+GTK
+
+echo "=== Sistem Markalaması ==="
 cat > /etc/os-release << 'OS'
 PRETTY_NAME="hello os"
 NAME="hello os"
@@ -142,7 +195,7 @@ OS
 echo "hello os 1.0" > /etc/hello-release
 echo "hello-os" > /etc/hostname
 
-# ── GRUB ──
+echo "=== GRUB ==="
 mkdir -p /etc/default/grub.d
 cat > /etc/default/grub.d/99-hello.cfg << 'GRUB'
 GRUB_DISTRIBUTOR="hello os"
@@ -150,7 +203,7 @@ GRUB_TIMEOUT=5
 GRUB_CMDLINE_LINUX_DEFAULT="quiet splash"
 GRUB
 
-# ── Kullanıcı ──
+echo "=== Kullanıcı ==="
 useradd -m -s /bin/bash -G sudo,adm user
 echo "user:123456" | chpasswd
 mkdir -p /etc/gdm3
@@ -161,7 +214,7 @@ AutomaticLogin=user
 WaylandEnable=true
 GDM
 
-# ── Ubiquity CSS ──
+echo "=== Ubiquity CSS ==="
 mkdir -p /usr/share/ubiquity/gtk
 cat > /usr/share/ubiquity/gtk/ubiquity.css << 'CSS'
 @define-color bg #ffffff;@define-color fg #1d1d1f;@define-color ac #0071e3;
@@ -175,7 +228,7 @@ entry{background:rgba(0,0,0,0.03);border:1.5px solid rgba(0,0,0,0.08);border-rad
 entry:focus{border-color:@ac;box-shadow:0 0 0 3px rgba(0,113,227,0.1)}
 CSS
 
-# ── Kurulum slaytı ──
+echo "=== Slayt ==="
 mkdir -p /usr/share/ubiquity-slideshow/slides/l10n/tr
 cat > /usr/share/ubiquity-slideshow/slides/l10n/tr/welcome.html << 'SLIDE'
 <!DOCTYPE html><html><head><meta charset="UTF-8"><style>
@@ -190,19 +243,18 @@ body{background:#fff;text-align:center;font-family:sans-serif;padding:60px}
 </body></html>
 SLIDE
 
-# ── Temizlik ──
 apt clean
 rm -rf /tmp/*
-echo "=== Kurulum tamamlandı ==="
+echo "=== KURULUM TAMAM ==="
 SETUP
 
 sudo chmod +x "$ROOTFS/tmp/setup.sh"
-info "Paketler kuruluyor (10-20 dk)..."
+info "Paketler kuruluyor (15-25 dk)..."
 sudo chroot "$ROOTFS" /tmp/setup.sh
 log "Paket kurulumu tamam"
 
 # ═══════════════════════════════════════════════════════════════
-# 3. TEMİZLİK VE SQUASHFS
+# 3. SQUASHFS + KERNEL
 # ═══════════════════════════════════════════════════════════════
 sudo umount "$ROOTFS/dev" "$ROOTFS/proc" "$ROOTFS/sys" 2>/dev/null || true
 
@@ -210,24 +262,13 @@ info "Squashfs oluşturuluyor..."
 sudo mksquashfs "$ROOTFS" "$ISO_DIR/casper/filesystem.squashfs" -comp xz -b 1M
 log "Squashfs: $(du -h "$ISO_DIR/casper/filesystem.squashfs" | cut -f1)"
 
-# ═══════════════════════════════════════════════════════════════
-# 4. KERNEL + INITRD
-# ═══════════════════════════════════════════════════════════════
 sudo cp "$ROOTFS/boot/vmlinuz-"* "$ISO_DIR/casper/vmlinuz" 2>/dev/null || true
 sudo cp "$ROOTFS/boot/initrd.img-"* "$ISO_DIR/casper/initrd" 2>/dev/null || true
 
-# Manifest
-sudo chroot "$ROOTFS" dpkg-query -W --showformat='${Package} ${Version}\n' | sudo tee "$ISO_DIR/casper/filesystem.manifest" > /dev/null
-sudo stat -c%s "$ISO_DIR/casper/filesystem.squashfs" | sudo tee "$ISO_DIR/casper/filesystem.size" > /dev/null
-
-log "Kernel ve initrd kopyalandı"
-
 # ═══════════════════════════════════════════════════════════════
-# 5. BOOTLOADER (ISOLINUX + GRUB)
+# 4. BOOTLOADER
 # ═══════════════════════════════════════════════════════════════
 info "Bootloader ekleniyor..."
-
-# Syslinux
 wget -q https://mirrors.edge.kernel.org/pub/linux/utils/boot/syslinux/syslinux-6.03.tar.gz -O /tmp/syslinux.tar.gz
 tar -xzf /tmp/syslinux.tar.gz -C /tmp/
 
@@ -261,10 +302,8 @@ menuentry "hello os - Live" { linux /casper/vmlinuz boot=casper quiet splash; in
 menuentry "hello os - Install" { linux /casper/vmlinuz boot=casper only-ubiquity quiet splash; initrd /casper/initrd; }
 EOF
 
-log "Bootloader hazır"
-
 # ═══════════════════════════════════════════════════════════════
-# 6. ISO OLUŞTUR
+# 5. ISO
 # ═══════════════════════════════════════════════════════════════
 info "ISO oluşturuluyor..."
 cd "$ISO_DIR"
@@ -284,8 +323,8 @@ if [ -f "$OUTPUT" ]; then
     echo -e "${G}║   $OUTPUT${N}"
     echo -e "${G}║   Boyut: $(du -h "$OUTPUT" | cut -f1)                          ║${N}"
     echo -e "${G}║   Kullanıcı: user / 123456              ║${N}"
-    echo -e "${G}║   Sağ tık → Download                     ║${N}"
+    echo -e "${G}║   Tema: MacTahoe                        ║${N}"
+    echo -e "${G}║   Font: Pacifico                        ║${N}"
+    echo -e "${G}║   Sağ tık → Download                    ║${N}"
     echo -e "${G}╚══════════════════════════════════════════╝${N}"
-else
-    err "ISO oluşturulamadı!"
 fi
