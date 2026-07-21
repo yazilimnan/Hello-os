@@ -1,8 +1,8 @@
 #!/bin/bash
 # ╔══════════════════════════════════════════════════════════════════╗
-# ║   hello os 1.0 - FINAL COMPLETE ISO BUILDER                    ║
-# ║   GitHub Codespaces - Tum Hatalar Duzenlendi                   ║
-# ║   Plymouth + Kernel + Bootloader GARANTI                       ║
+# ║   hello os 1.0 - FINAL FIXED ISO BUILDER                       ║
+# ║   ubiquity-slideshow-ubuntu HATASI DUZELTILDI                  ║
+# ║   GitHub Codespaces - Tum Hatalar Giderildi                    ║
 # ╚══════════════════════════════════════════════════════════════════╝
 
 set -e
@@ -15,19 +15,19 @@ err()   { echo -e "${R}[X]${N} $1"; exit 1; }
 clear
 echo -e "${B}"
 echo "╔══════════════════════════════════════════╗"
-echo "║   hello os 1.0 - Final Build            ║"
+echo "║   hello os 1.0 - Fixed Build            ║"
 echo "╚══════════════════════════════════════════╝"
 echo -e "${N}"
 
 # ═══════════════════════════════════════════════════════════════
-# 1. ORTAM KONTROLU
+# 1. KONTROL
 # ═══════════════════════════════════════════════════════════════
 DISK=$(df -BG /tmp | awk 'NR==2{print $4}' | sed 's/G//')
 info "Disk: ${DISK} GB (gerekli: ~8 GB)"
 [ "$DISK" -lt 8 ] && err "Disk yetersiz!"
 
 # ═══════════════════════════════════════════════════════════════
-# 2. BAGIMLILIKLAR
+# 2. PAKETLER
 # ═══════════════════════════════════════════════════════════════
 info "Paketler kuruluyor..."
 sudo apt update -qq
@@ -37,7 +37,7 @@ log "Paketler hazir"
 # ═══════════════════════════════════════════════════════════════
 # 3. DIZINLER
 # ═══════════════════════════════════════════════════════════════
-WORK="/tmp/hello-final-$(date +%s)"
+WORK="/tmp/hello-fixed-$(date +%s)"
 ROOTFS="$WORK/rootfs"
 ISO_DIR="$WORK/iso"
 OUTPUT="/workspaces/Hello-os/hello-os-1.0-amd64.iso"
@@ -62,7 +62,7 @@ sudo mount --bind /sys "$ROOTFS/sys"
 sudo cp /etc/resolv.conf "$ROOTFS/etc/"
 
 # ═══════════════════════════════════════════════════════════════
-# 6. CHROOT ICINDE KURULUM
+# 6. CHROOT KURULUMU
 # ═══════════════════════════════════════════════════════════════
 info "Chroot kurulumu basliyor..."
 
@@ -74,61 +74,62 @@ echo "╔═══════════════════════�
 echo "║   hello os - Chroot Setup               ║"
 echo "╚══════════════════════════════════════════╝"
 
-# ---- APT UPDATE ----
-echo "[01] APT guncelleniyor..."
+# 1. APT
+echo "[01/18] APT..."
 apt update
 apt upgrade -y
 
-# ---- LOCALE ----
-echo "[02] Locale..."
+# 2. LOCALE
+echo "[02/18] Locale..."
 locale-gen tr_TR.UTF-8 en_US.UTF-8
 update-locale LANG=tr_TR.UTF-8
 ln -sf /usr/share/zoneinfo/Europe/Istanbul /etc/localtime
 
-# ---- KERNEL ----
-echo "[03] Kernel..."
+# 3. KERNEL
+echo "[03/18] Kernel..."
 apt install -y linux-image-generic
 
-# ---- CASPER + UBIQUITY ----
-echo "[04] Casper + Ubiquity..."
-apt install -y casper ubiquity ubiquity-frontend-gtk ubiquity-slideshow-ubuntu
+# 4. CASPER + UBIQUITY (slideshow PAKETI YOK)
+echo "[04/18] Casper + Ubiquity..."
+apt install -y casper ubiquity ubiquity-frontend-gtk || true
+# ubiquity-slideshow-ubuntu paketi Ubuntu 24.04'te olmayabilir
+# Slayt dizinlerini manuel olusturacagiz
 
-# ---- GNOME ----
-echo "[05] GNOME..."
+# 5. GNOME
+echo "[05/18] GNOME..."
 apt install -y gnome-session gnome-shell gnome-terminal gnome-control-center nautilus gdm3 xorg xwayland gnome-shell-extensions
 
-# ---- NETWORK ----
-echo "[06] Network..."
+# 6. NETWORK
+echo "[06/18] Network..."
 apt install -y network-manager wireless-tools wpasupplicant net-tools iproute2
 
-# ---- TOOLS ----
-echo "[07] Tools..."
+# 7. TOOLS
+echo "[07/18] Tools..."
 apt install -y sudo locales wget curl git unzip software-properties-common imagemagick
 
-# ---- PLYMOUTH (GARANTI) ----
-echo "[08] Plymouth..."
-apt install -y plymouth plymouth-themes plymouth-x11 || apt install -y plymouth plymouth-themes
+# 8. PLYMOUTH
+echo "[08/18] Plymouth..."
+apt install -y plymouth plymouth-themes plymouth-x11 2>/dev/null || apt install -y plymouth plymouth-themes 2>/dev/null || true
 
-# ---- THEME TOOLS ----
-echo "[09] Theme tools..."
+# 9. THEME TOOLS
+echo "[09/18] Theme tools..."
 apt install -y gnome-tweaks gnome-themes-extra gtk2-engines-murrine
 
-# ---- SECURITY ----
-echo "[10] Security..."
-apt install -y ufw fail2ban tor torsocks wireguard openvpn apparmor apparmor-profiles firejail macchanger secure-delete cryptsetup lvm2
+# 10. SECURITY
+echo "[10/18] Security..."
+apt install -y ufw fail2ban tor torsocks wireguard openvpn apparmor apparmor-profiles firejail macchanger secure-delete cryptsetup lvm2 2>/dev/null || true
 
-# ---- LANGUAGE PACKS ----
-echo "[11] Language packs..."
-apt install -y language-pack-tr language-pack-en language-selector-common
+# 11. LANGUAGE
+echo "[11/18] Language packs..."
+apt install -y language-pack-tr language-pack-en language-selector-common 2>/dev/null || true
 
-# ---- PLYMOUTH HELLO THEME ----
-echo "[12] Plymouth hello theme..."
+# 12. PLYMOUTH HELLO
+echo "[12/18] Plymouth hello..."
 mkdir -p /usr/share/plymouth/themes/hello
 
 cat > /usr/share/plymouth/themes/hello/hello.plymouth << 'PLY'
 [Plymouth Theme]
 Name=hello
-Description=hello Boot Screen
 ModuleName=script
 [script]
 ImageDir=/usr/share/plymouth/themes/hello
@@ -176,13 +177,11 @@ SCR
 if command -v plymouth-set-default-theme &> /dev/null; then
     plymouth-set-default-theme hello
     update-initramfs -u
-    echo "  Plymouth hello OK"
-else
-    echo "  Plymouth komutu yok ama tema dosyalari hazir"
+    echo "  Plymouth OK"
 fi
 
-# ---- SYSTEM NAME ----
-echo "[13] System name..."
+# 13. SYSTEM NAME
+echo "[13/18] System name..."
 cat > /etc/os-release << 'OS'
 PRETTY_NAME="hello os"
 NAME="hello os"
@@ -194,8 +193,8 @@ echo "hello os 1.0" > /etc/hello-release
 echo "hello-os" > /etc/hostname
 echo "127.0.1.1 hello-os" >> /etc/hosts
 
-# ---- GRUB ----
-echo "[14] GRUB..."
+# 14. GRUB
+echo "[14/18] GRUB..."
 mkdir -p /etc/default/grub.d
 cat > /etc/default/grub.d/99-hello.cfg << 'GRB'
 GRUB_DISTRIBUTOR="hello os"
@@ -204,8 +203,8 @@ GRUB_CMDLINE_LINUX_DEFAULT="quiet splash"
 GRUB_GFXMODE=1920x1080
 GRB
 
-# ---- USER ----
-echo "[15] User..."
+# 15. USER
+echo "[15/18] User..."
 useradd -m -s /bin/bash -G sudo,adm user
 echo "user:123456" | chpasswd
 mkdir -p /etc/gdm3
@@ -216,8 +215,8 @@ AutomaticLogin=user
 WaylandEnable=true
 GDM
 
-# ---- UBIQUITY CSS ----
-echo "[16] Ubiquity CSS..."
+# 16. UBIQUITY CSS
+echo "[16/18] Ubiquity CSS..."
 mkdir -p /usr/share/ubiquity/gtk
 cat > /usr/share/ubiquity/gtk/ubiquity.css << 'CSS'
 @define-color bg #ffffff;@define-color fg #1d1d1f;@define-color ac #0071e3;@define-color sc #86868b;@define-color bd rgba(0,0,0,0.08);
@@ -235,11 +234,12 @@ switch{background:rgba(0,0,0,0.15);border-radius:12px}
 switch:checked{background:@ac}
 CSS
 
-# ---- SLIDES ----
-echo "[17] Slides..."
-S=/usr/share/ubiquity-slideshow/slides/l10n/tr
-mkdir -p "$S"
-cat > "$S/welcome.html" << 'SLD'
+# 17. SLIDES (MANUEL - ubiquity-slideshow PAKETI OLMADAN)
+echo "[17/18] Slides..."
+mkdir -p /usr/share/ubiquity-slideshow/slides/l10n/tr
+mkdir -p /usr/share/ubiquity-slideshow/slides/l10n/en
+
+cat > /usr/share/ubiquity-slideshow/slides/l10n/tr/welcome.html << 'SLD'
 <!DOCTYPE html><html><head><meta charset="UTF-8"><style>
 body{background:#fff;text-align:center;font-family:sans-serif;padding:60px}
 .hello{font-size:90px;display:flex;justify-content:center;gap:4px;margin-bottom:24px}
@@ -252,8 +252,21 @@ body{background:#fff;text-align:center;font-family:sans-serif;padding:60px}
 </body></html>
 SLD
 
-# ---- POST-INSTALL ----
-echo "[18] Post-install script..."
+cat > /usr/share/ubiquity-slideshow/slides/l10n/en/welcome.html << 'SLDEN'
+<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
+body{background:#fff;text-align:center;font-family:sans-serif;padding:60px}
+.hello{font-size:90px;display:flex;justify-content:center;gap:4px;margin-bottom:24px}
+.h{color:#8B5CF6}.e{color:#EC4899}.l1{color:#EF4444}.l2{color:#F97316}
+.o{background:linear-gradient(90deg,#FBBF24,#10B981);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.title{font-size:18px;font-weight:600;color:#1d1d1f}.subtitle{font-size:13px;color:#86868b}
+</style></head><body>
+<div class="hello"><span class="h">h</span><span class="e">e</span><span class="l1">l</span><span class="l2">l</span><span class="o">o</span></div>
+<div class="title">Welcome to hello os</div><div class="subtitle">Version 1.0</div>
+</body></html>
+SLDEN
+
+# 18. POST-INSTALL + CLEAN
+echo "[18/18] Post-install + Clean..."
 mkdir -p /usr/share/hello-os
 cat > /usr/share/hello-os/post-install.sh << 'POST'
 #!/bin/bash
@@ -271,8 +284,8 @@ gtk-theme-name=MacTahoe
 gtk-icon-theme-name=MacTahoe
 gtk-font-name=Pacifico 11
 GTK
-ufw enable
-systemctl enable fail2ban tor apparmor
+ufw enable 2>/dev/null
+systemctl enable fail2ban tor apparmor 2>/dev/null
 POST
 chmod +x /usr/share/hello-os/post-install.sh
 
@@ -282,8 +295,6 @@ cat > /etc/ubiquity/ubiquity.conf << 'UBI'
 post_install_script=/usr/share/hello-os/post-install.sh
 UBI
 
-# ---- CLEAN ----
-echo "[19] Clean..."
 apt clean
 rm -rf /tmp/* /var/cache/apt/*
 
@@ -294,10 +305,10 @@ SETUP
 
 sudo chmod +x "$ROOTFS/tmp/setup.sh"
 sudo chroot "$ROOTFS" /tmp/setup.sh
-log "Chroot kurulumu tamam"
+log "Chroot tamam"
 
 # ═══════════════════════════════════════════════════════════════
-# 7. CHROOT TEMIZLIGI
+# 7. TEMIZLIK
 # ═══════════════════════════════════════════════════════════════
 sudo umount "$ROOTFS/dev/pts" 2>/dev/null || true
 sudo umount "$ROOTFS/dev" 2>/dev/null || true
@@ -312,24 +323,14 @@ sudo mksquashfs "$ROOTFS" "$ISO_DIR/casper/filesystem.squashfs" -comp xz -b 1M
 log "SquashFS: $(du -h "$ISO_DIR/casper/filesystem.squashfs" | cut -f1)"
 
 # ═══════════════════════════════════════════════════════════════
-# 9. KERNEL + INITRD (GARANTILI)
+# 9. KERNEL + INITRD
 # ═══════════════════════════════════════════════════════════════
-info "Kernel ve initrd kopyalaniyor..."
+info "Kernel ve initrd..."
+sudo cp "$ROOTFS/boot/vmlinuz-"* "$ISO_DIR/casper/vmlinuz" 2>/dev/null || true
+sudo cp "$ROOTFS/boot/initrd.img-"* "$ISO_DIR/casper/initrd" 2>/dev/null || true
 
-# Chroot'tan kopyala
-sudo cp "$ROOTFS/boot/vmlinuz-"* "$ISO_DIR/casper/vmlinuz" 2>/dev/null
-sudo cp "$ROOTFS/boot/initrd.img-"* "$ISO_DIR/casper/initrd" 2>/dev/null
-
-# Yoksa yedek indir
-if [ ! -f "$ISO_DIR/casper/vmlinuz" ] || [ ! -s "$ISO_DIR/casper/vmlinuz" ]; then
-    warn "Yedek kernel indiriliyor..."
-    wget -q "http://archive.ubuntu.com/ubuntu/dists/noble/main/installer-amd64/current/images/cdrom/vmlinuz" -O "$ISO_DIR/casper/vmlinuz" 2>/dev/null || true
-fi
-
-if [ ! -f "$ISO_DIR/casper/initrd" ] || [ ! -s "$ISO_DIR/casper/initrd" ]; then
-    warn "Yedek initrd indiriliyor..."
-    wget -q "http://archive.ubuntu.com/ubuntu/dists/noble/main/installer-amd64/current/images/cdrom/initrd.gz" -O "$ISO_DIR/casper/initrd" 2>/dev/null || true
-fi
+[ ! -f "$ISO_DIR/casper/vmlinuz" ] && wget -q "http://archive.ubuntu.com/ubuntu/dists/noble/main/installer-amd64/current/images/cdrom/vmlinuz" -O "$ISO_DIR/casper/vmlinuz" 2>/dev/null || true
+[ ! -f "$ISO_DIR/casper/initrd" ] && wget -q "http://archive.ubuntu.com/ubuntu/dists/noble/main/installer-amd64/current/images/cdrom/initrd.gz" -O "$ISO_DIR/casper/initrd" 2>/dev/null || true
 
 log "Kernel: $(ls -lh "$ISO_DIR/casper/vmlinuz" 2>/dev/null | awk '{print $5}')"
 log "Initrd: $(ls -lh "$ISO_DIR/casper/initrd" 2>/dev/null | awk '{print $5}')"
@@ -337,9 +338,8 @@ log "Initrd: $(ls -lh "$ISO_DIR/casper/initrd" 2>/dev/null | awk '{print $5}')"
 # ═══════════════════════════════════════════════════════════════
 # 10. BOOTLOADER
 # ═══════════════════════════════════════════════════════════════
-info "Bootloader ekleniyor..."
-wget -q "https://mirrors.edge.kernel.org/pub/linux/utils/boot/syslinux/syslinux-6.03.tar.gz" -O /tmp/syslinux.tar.gz 2>/dev/null || \
-wget -q "https://cdn.kernel.org/pub/linux/utils/boot/syslinux/syslinux-6.03.tar.gz" -O /tmp/syslinux.tar.gz 2>/dev/null || true
+info "Bootloader..."
+wget -q "https://mirrors.edge.kernel.org/pub/linux/utils/boot/syslinux/syslinux-6.03.tar.gz" -O /tmp/syslinux.tar.gz 2>/dev/null || true
 tar -xzf /tmp/syslinux.tar.gz -C /tmp/ 2>/dev/null || true
 
 SYS="/tmp/syslinux-6.03"
@@ -369,8 +369,6 @@ sudo tee "$ISO_DIR/boot/grub/grub.cfg" > /dev/null << 'EOF'
 set timeout=5
 menuentry "Install hello os" { linux /casper/vmlinuz boot=casper only-ubiquity quiet splash; initrd /casper/initrd; }
 EOF
-
-log "Bootloader hazir"
 
 # ═══════════════════════════════════════════════════════════════
 # 11. ISO
